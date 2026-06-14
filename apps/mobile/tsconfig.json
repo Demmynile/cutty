@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@cutty/types": ["../../packages/types/index.ts"],
+      "@/*": ["./*"]
+    }
+  }
+}

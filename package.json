@@ -1,0 +1,16 @@
+{
+  "name": "cutty",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "mobile": "npm run dev --workspace=apps/mobile",
+    "admin": "npm run dev --workspace=apps/admin",
+    "studio": "npm run dev --workspace=apps/studio",
+    "build:admin": "npm run build --workspace=apps/admin",
+    "build:studio": "npm run build --workspace=apps/studio"
+  }
+}
