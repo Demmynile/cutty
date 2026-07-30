@@ -5,7 +5,7 @@ import { Image } from 'expo-image'
 import { sanityClient, urlFor, formatPrice } from '@/lib/sanity'
 import { useAuthStore } from '@/store/authStore'
 import { ORDERS_BY_CUSTOMER } from '@/lib/queries'
-import { Order } from '@cutty/types'
+import type { Order } from '@cutty/types'
 import { Ionicons } from '@expo/vector-icons'
 
 const STATUS_COLOR: Record<string, string> = {

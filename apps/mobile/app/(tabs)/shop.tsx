@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, RefreshControl } from 'react-native'
 import { router } from 'expo-router'
 import { Image } from 'expo-image'
+import { LinearGradient } from 'expo-linear-gradient'
 import { sanityClient, urlFor, formatPrice } from '@/lib/sanity'
 import { PRODUCTS_ACTIVE, CATEGORIES_ALL } from '@/lib/queries'
-import { Product, Category } from '@cutty/types'
+import type { Product, Category } from '@cutty/types'
 import { useCartStore } from '@/store/cartStore'
 import { Ionicons } from '@expo/vector-icons'
 
@@ -94,54 +95,97 @@ export default function ShopScreen() {
           contentContainerStyle={{ padding: 20 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await fetchData(); setRefreshing(false) }} tintColor="#D4891A" />}
         >
-          <View className="flex-row flex-wrap gap-4">
-            {filtered.map((product) => (
-              <TouchableOpacity
-                key={product._id}
-                className="bg-dark-800 rounded-2xl overflow-hidden"
-                style={{ width: '47%' }}
-                onPress={() => router.push(`/product/${product.slug.current}`)}
-              >
-                <View className="relative">
-                  {product.images?.[0] ? (
-                    <Image source={{ uri: urlFor(product.images[0]).width(300).url() }} className="w-full h-36" contentFit="cover" />
-                  ) : (
-                    <View className="w-full h-36 bg-dark-700 items-center justify-center">
-                      <Ionicons name="image-outline" size={32} color="#484848" />
-                    </View>
-                  )}
-                  {product.compareAtPrice && (
-                    <View className="absolute top-2 left-2 bg-red-500 px-2 py-0.5 rounded-full">
-                      <Text className="text-white text-xs font-bold">SALE</Text>
-                    </View>
-                  )}
-                  {product.stock === 0 && (
-                    <View className="absolute inset-0 bg-black/60 items-center justify-center">
-                      <Text className="text-white font-bold">Out of Stock</Text>
-                    </View>
-                  )}
-                </View>
-                <View className="p-3">
-                  <Text className="text-white text-sm font-medium" numberOfLines={2}>{product.name}</Text>
-                  <View className="flex-row items-center justify-between mt-2">
-                    <View>
-                      <Text className="text-primary-400 font-bold text-sm">{formatPrice(product.price)}</Text>
+          <View className="flex-row flex-wrap justify-between gap-y-4">
+            {filtered.map((product) => {
+              const discountPct = product.compareAtPrice
+                ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+                : 0
+              const lowStock = product.stock > 0 && product.stock <= 5
+              const outOfStock = product.stock === 0
+
+              return (
+                <TouchableOpacity
+                  key={product._id}
+                  activeOpacity={0.85}
+                  className="bg-dark-800 border border-dark-700 rounded-2xl overflow-hidden"
+                  style={{ width: '48%' }}
+                  onPress={() => router.push(`/product/${product.slug.current}`)}
+                >
+                  <View className="relative">
+                    {product.images?.[0] ? (
+                      <Image
+                        source={{ uri: urlFor(product.images[0]).width(400).url() }}
+                        className="w-full h-40"
+                        contentFit="cover"
+                        transition={250}
+                        cachePolicy="memory-disk"
+                      />
+                    ) : (
+                      <View className="w-full h-40 bg-dark-700 items-center justify-center">
+                        <Ionicons name="image-outline" size={32} color="#484848" />
+                      </View>
+                    )}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(26,26,26,0.5)']}
+                      style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 28 }}
+                      pointerEvents="none"
+                    />
+                    {discountPct > 0 && (
+                      <View className="absolute top-2 left-2 bg-red-500 px-2 py-1 rounded-full">
+                        <Text className="text-white text-[10px] font-bold">-{discountPct}%</Text>
+                      </View>
+                    )}
+                    {lowStock && !outOfStock && (
+                      <View className="absolute top-2 right-2 bg-dark-900/90 px-2 py-1 rounded-full">
+                        <Text className="text-primary-300 text-[10px] font-semibold">{product.stock} left</Text>
+                      </View>
+                    )}
+                    {outOfStock && (
+                      <View className="absolute inset-0 bg-black/70 items-center justify-center">
+                        <Text className="text-white font-semibold text-xs">Out of Stock</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View className="p-3.5">
+                    {product.category?.name && (
+                      <Text
+                        className="text-dark-400 text-[10px] font-semibold mb-1"
+                        style={{ letterSpacing: 1 }}
+                        numberOfLines={1}
+                      >
+                        {product.category.name.toUpperCase()}
+                      </Text>
+                    )}
+                    <Text
+                      className="text-white text-sm font-semibold leading-[18px]"
+                      style={{ minHeight: 36 }}
+                      numberOfLines={2}
+                    >
+                      {product.name}
+                    </Text>
+                    <View className="flex-row items-baseline gap-2 mt-2 flex-wrap">
+                      <Text className="text-primary-400 font-bold text-base">{formatPrice(product.price)}</Text>
                       {product.compareAtPrice && (
-                        <Text className="text-dark-400 text-xs line-through">{formatPrice(product.compareAtPrice)}</Text>
+                        <Text className="text-dark-500 text-xs line-through">{formatPrice(product.compareAtPrice)}</Text>
                       )}
                     </View>
-                    <TouchableOpacity
-                      className="bg-primary-500 w-8 h-8 rounded-full items-center justify-center"
-                      onPress={(e) => { e.stopPropagation(); addItem(product) }}
-                      disabled={product.stock === 0}
-                    >
-                      <Ionicons name="add" size={16} color="white" />
-                    </TouchableOpacity>
+                    <View className="flex-row items-center justify-between mt-3">
+                      <View className="flex-row items-center gap-1 bg-primary-500/10 px-2 py-1 rounded-full">
+                        <Ionicons name="star" size={10} color="#F1A91F" />
+                        <Text className="text-primary-400 text-[10px] font-semibold">+{product.pointsEarned} pts</Text>
+                      </View>
+                      <TouchableOpacity
+                        className={`w-8 h-8 rounded-full items-center justify-center ${outOfStock ? 'bg-dark-700' : 'bg-primary-500'}`}
+                        onPress={(e) => { e.stopPropagation(); addItem(product) }}
+                        disabled={outOfStock}
+                      >
+                        <Ionicons name="add" size={16} color={outOfStock ? '#686868' : 'white'} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <Text className="text-primary-400/70 text-xs mt-1">+{product.pointsEarned} pts</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              )
+            })}
           </View>
           {filtered.length === 0 && (
             <View className="items-center py-20">

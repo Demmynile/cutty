@@ -11,6 +11,16 @@
     "admin": "npm run dev --workspace=apps/admin",
     "studio": "npm run dev --workspace=apps/studio",
     "build:admin": "npm run build --workspace=apps/admin",
-    "build:studio": "npm run build --workspace=apps/studio"
+    "build:studio": "npm run build --workspace=apps/studio",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "overrides": {
+    "react-native": "0.79.6",
+    "react-native-reanimated": "~3.17.4",
+    "react-native-screens": "~4.11.1",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-css-interop": {
+      "react-native-reanimated": "~3.17.4"
+    }
   }
 }

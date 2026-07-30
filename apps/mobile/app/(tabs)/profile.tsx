@@ -79,7 +79,7 @@ export default function ProfileScreen() {
           className="flex-1 bg-primary-500 rounded-2xl p-4 items-center gap-2"
           onPress={() => router.push('/booking/new')}
         >
-          <Ionicons name="scissors" size={24} color="white" />
+          <Ionicons name="cut" size={24} color="white" />
           <Text className="text-white text-sm font-semibold">Book Now</Text>
         </TouchableOpacity>
         <TouchableOpacity

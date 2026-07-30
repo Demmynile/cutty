@@ -4,7 +4,7 @@ import { router } from 'expo-router'
 import { useAuthStore } from '@/store/authStore'
 import { sanityClient } from '@/lib/sanity'
 import { BOOKINGS_BY_CUSTOMER } from '@/lib/queries'
-import { Booking, BookingStatus } from '@cutty/types'
+import type { Booking, BookingStatus } from '@cutty/types'
 import { formatPrice } from '@/lib/sanity'
 import { Ionicons } from '@expo/vector-icons'
 

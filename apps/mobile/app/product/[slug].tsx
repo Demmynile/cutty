@@ -4,7 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { Image } from 'expo-image'
 import { sanityClient, urlFor, formatPrice } from '@/lib/sanity'
 import { PRODUCT_BY_SLUG } from '@/lib/queries'
-import { Product } from '@cutty/types'
+import type { Product } from '@cutty/types'
 import { useCartStore } from '@/store/cartStore'
 import { Ionicons } from '@expo/vector-icons'
 

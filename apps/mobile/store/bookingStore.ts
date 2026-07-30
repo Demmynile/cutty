@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Barber, DiscountCode, Service } from '@cutty/types'
+import type { Barber, DiscountCode, Service } from '@cutty/types'
 
 interface BookingDraft {
   services: Service[]

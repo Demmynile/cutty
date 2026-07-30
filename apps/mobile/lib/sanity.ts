@@ -1,6 +1,6 @@
 import { createClient } from '@sanity/client'
 import imageUrlBuilder from '@sanity/image-url'
-import { SanityImage } from '@cutty/types'
+import type { SanityImage } from '@cutty/types'
 
 export const sanityClient = createClient({
   projectId: process.env.EXPO_PUBLIC_SANITY_PROJECT_ID!,

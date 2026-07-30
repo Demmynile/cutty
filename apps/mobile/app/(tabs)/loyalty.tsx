@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Tex
 import { sanityClient, writeClient } from '@/lib/sanity'
 import { useAuthStore } from '@/store/authStore'
 import { LOYALTY_TRANSACTIONS_BY_CUSTOMER, DISCOUNT_CODE_BY_CODE } from '@/lib/queries'
-import { LoyaltyTransaction } from '@cutty/types'
+import type { LoyaltyTransaction } from '@cutty/types'
 import { TIER_COLORS, POINTS_TO_KOBO_RATE } from '@/constants'
 import { Ionicons } from '@expo/vector-icons'
 

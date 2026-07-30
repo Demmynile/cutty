@@ -4,7 +4,7 @@ import { router } from 'expo-router'
 import { writeClient, sanityClient, formatPrice } from '@/lib/sanity'
 import { useAuthStore } from '@/store/authStore'
 import { WALLET_TRANSACTIONS_BY_CUSTOMER } from '@/lib/queries'
-import { WalletTransaction } from '@cutty/types'
+import type { WalletTransaction } from '@cutty/types'
 import { Ionicons } from '@expo/vector-icons'
 
 const TOPUP_AMOUNTS = [500000, 1000000, 2000000, 5000000]

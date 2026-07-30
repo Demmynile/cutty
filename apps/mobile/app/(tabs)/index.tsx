@@ -5,7 +5,7 @@ import { Image } from 'expo-image'
 import { useAuthStore } from '@/store/authStore'
 import { sanityClient, urlFor, formatPrice } from '@/lib/sanity'
 import { SERVICES_ACTIVE, PRODUCTS_FEATURED, BOOKINGS_BY_CUSTOMER } from '@/lib/queries'
-import { Service, Product, Booking } from '@cutty/types'
+import type { Service, Product, Booking } from '@cutty/types'
 import { TIER_COLORS } from '@/constants'
 import { Ionicons } from '@expo/vector-icons'
 

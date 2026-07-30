@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Customer } from '@cutty/types'
+import type { Customer } from '@cutty/types'
 import { clearAuthData, storeAuthData } from '@/lib/auth'
 
 interface AuthState {

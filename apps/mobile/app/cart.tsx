@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useCartStore } from '@/store/cartStore'
 import { urlFor, formatPrice, sanityClient } from '@/lib/sanity'
 import { DISCOUNT_CODE_BY_CODE } from '@/lib/queries'
-import { DiscountCode } from '@cutty/types'
+import type { DiscountCode } from '@cutty/types'
 import { Ionicons } from '@expo/vector-icons'
 
 export default function CartScreen() {

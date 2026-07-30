@@ -4,7 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { Image } from 'expo-image'
 import { sanityClient, writeClient, urlFor, formatPrice } from '@/lib/sanity'
 import { BOOKING_BY_ID } from '@/lib/queries'
-import { Booking, BookingStatus } from '@cutty/types'
+import type { Booking, BookingStatus } from '@cutty/types'
 import { Ionicons } from '@expo/vector-icons'
 
 const STATUS_COLOR: Record<BookingStatus, string> = {

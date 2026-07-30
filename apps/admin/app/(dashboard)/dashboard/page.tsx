@@ -53,7 +53,7 @@ export default async function DashboardPage() {
         <div className="bg-gray-900 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-white font-bold text-lg">Recent Bookings</h2>
-            <a href="/dashboard/bookings" className="text-primary-400 text-sm hover:underline">View all →</a>
+            <a href="/bookings" className="text-primary-400 text-sm hover:underline">View all →</a>
           </div>
           <div className="space-y-3">
             {(bookings as Booking[]).slice(0, 8).map((b) => (
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
         <div className="bg-gray-900 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-white font-bold text-lg">Recent Orders</h2>
-            <a href="/dashboard/orders" className="text-primary-400 text-sm hover:underline">View all →</a>
+            <a href="/orders" className="text-primary-400 text-sm hover:underline">View all →</a>
           </div>
           <div className="space-y-3">
             {(orders as Order[]).slice(0, 8).map((o) => (

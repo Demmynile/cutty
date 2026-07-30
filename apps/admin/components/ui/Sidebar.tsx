@@ -5,14 +5,14 @@ import { usePathname, useRouter } from 'next/navigation'
 
 const NAV = [
   { href: '/dashboard', icon: '📊', label: 'Dashboard' },
-  { href: '/dashboard/bookings', icon: '📅', label: 'Bookings' },
-  { href: '/dashboard/services', icon: '✂', label: 'Services' },
-  { href: '/dashboard/barbers', icon: '👤', label: 'Barbers' },
-  { href: '/dashboard/products', icon: '🛍️', label: 'Products' },
-  { href: '/dashboard/orders', icon: '📦', label: 'Orders' },
-  { href: '/dashboard/customers', icon: '👥', label: 'Customers' },
-  { href: '/dashboard/loyalty', icon: '⭐', label: 'Loyalty' },
-  { href: '/dashboard/payments', icon: '💰', label: 'Payments' },
+  { href: '/bookings', icon: '📅', label: 'Bookings' },
+  { href: '/services', icon: '✂', label: 'Services' },
+  { href: '/barbers', icon: '👤', label: 'Barbers' },
+  { href: '/products', icon: '🛍️', label: 'Products' },
+  { href: '/orders', icon: '📦', label: 'Orders' },
+  { href: '/customers', icon: '👥', label: 'Customers' },
+  { href: '/loyalty', icon: '⭐', label: 'Loyalty' },
+  { href: '/payments', icon: '💰', label: 'Payments' },
 ]
 
 export function Sidebar() {
