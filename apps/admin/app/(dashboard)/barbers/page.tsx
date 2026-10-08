@@ -13,8 +13,8 @@ export default async function BarbersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-white text-3xl font-bold">Barbers</h1>
-        <p className="text-gray-400 mt-1">{barbers.length} barbers · Manage detailed profiles in Sanity Studio</p>
+        <h1 className="text-white text-3xl font-bold">Stylists</h1>
+        <p className="text-gray-400 mt-1">{barbers.length} stylists · Manage detailed profiles in Sanity Studio</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -53,7 +53,7 @@ export default async function BarbersPage() {
         ))}
         {barbers.length === 0 && (
           <div className="col-span-3 text-center py-16 text-gray-400 bg-gray-900 rounded-2xl">
-            No barbers yet. Add them in Sanity Studio.
+            No stylists yet. Add them in Sanity Studio.
           </div>
         )}
       </div>

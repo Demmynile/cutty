@@ -1,23 +1,17 @@
-import { createClient } from '@sanity/client'
+import 'server-only'
 import imageUrlBuilder from '@sanity/image-url'
 import type { SanityImage } from '@cutty/types'
+import { serverClient } from './server/sanity'
 
-export const sanityClient = createClient({
+// Dashboard pages are server components behind the admin session check in
+// middleware.ts. They read through the authenticated server client because
+// the dataset is private; writes go through server actions (app/(dashboard)/actions.ts).
+export const sanityClient = serverClient
+
+const builder = imageUrlBuilder({
   projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || 'production',
-  apiVersion: '2024-01-01',
-  useCdn: false,
 })
-
-export const writeClient = createClient({
-  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
-  dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || 'production',
-  apiVersion: '2024-01-01',
-  useCdn: false,
-  token: process.env.SANITY_API_TOKEN,
-})
-
-const builder = imageUrlBuilder(sanityClient)
 export function urlFor(source: SanityImage) {
   return builder.image(source)
 }

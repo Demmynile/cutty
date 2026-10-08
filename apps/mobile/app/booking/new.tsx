@@ -3,17 +3,22 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Tex
 import { router } from 'expo-router'
 import { Image } from 'expo-image'
 import { useEffect } from 'react'
-import { sanityClient, writeClient, urlFor, formatPrice } from '@/lib/sanity'
-import { SERVICES_ACTIVE, BARBERS_AVAILABLE, DISCOUNT_CODE_BY_CODE } from '@/lib/queries'
+import { urlFor } from '@/lib/sanity'
+import { api, errorMessage } from '@/lib/api'
+import { TRY_ON_STYLES } from '@cutty/types'
 import type { Service, Barber, DiscountCode } from '@cutty/types'
 import { useBookingStore } from '@/store/bookingStore'
 import { useAuthStore } from '@/store/authStore'
+import { getStyleImage } from '@/lib/styleImages'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice, usePreferredCurrency } from '@/lib/currency'
 
-const STEPS = ['Service', 'Barber', 'Date & Time', 'Confirm']
+const STEPS = ['Service', 'Stylist', 'Date & Time', 'Confirm']
 const TIMES = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30']
 
 export default function NewBookingScreen() {
+  const formatPrice = useFormatPrice()
+  const currency = usePreferredCurrency()
   const [step, setStep] = useState(0)
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
@@ -21,13 +26,14 @@ export default function NewBookingScreen() {
   const [submitting, setSubmitting] = useState(false)
   const [discountInput, setDiscountInput] = useState('')
   const [validatingCode, setValidatingCode] = useState(false)
+  const [styleGender, setStyleGender] = useState<'male' | 'female'>('male')
   const { draft, addService, removeService, setBarber, setDate, setTime, setNotes, setDiscountCode, resetDraft, totalAmount, totalDuration, totalPoints, discount, finalAmount } = useBookingStore()
-  const { customer, updateCustomer } = useAuthStore()
+  const { customer } = useAuthStore()
 
   useEffect(() => {
     Promise.all([
-      sanityClient.fetch(SERVICES_ACTIVE),
-      sanityClient.fetch(BARBERS_AVAILABLE),
+      api<Service[]>('GET', '/api/v1/catalog/services'),
+      api<Barber[]>('GET', '/api/v1/catalog/barbers'),
     ]).then(([svcs, brbs]) => {
       setServices(svcs)
       setBarbers(brbs)
@@ -38,16 +44,13 @@ export default function NewBookingScreen() {
     if (!discountInput.trim()) return
     setValidatingCode(true)
     try {
-      const code: DiscountCode = await sanityClient.fetch(DISCOUNT_CODE_BY_CODE, { code: discountInput.trim().toUpperCase() })
-      if (!code) { Alert.alert('Invalid Code', 'Discount code not found or expired.'); return }
-      if (code.applicableTo === 'order') { Alert.alert('Invalid', 'This code is only valid for product orders.'); return }
-      if (code.validUntil && new Date(code.validUntil) < new Date()) { Alert.alert('Expired', 'This discount code has expired.'); return }
-      if (code.maxUses && code.usedCount >= code.maxUses) { Alert.alert('Used Up', 'This code has reached its usage limit.'); return }
-      if (code.customer && code.customer._id !== customer?._id) { Alert.alert('Invalid', 'This code is not valid for your account.'); return }
+      const code = await api<DiscountCode>('POST', '/api/v1/discounts/validate', {
+        code: discountInput.trim().toUpperCase(), context: 'booking', subtotal: totalAmount(),
+      })
       setDiscountCode(code)
       Alert.alert('Applied! 🎉', `Discount code "${code.code}" applied.`)
-    } catch {
-      Alert.alert('Error', 'Failed to validate code.')
+    } catch (err) {
+      Alert.alert('Invalid Code', errorMessage(err, 'Failed to validate code.'))
     } finally {
       setValidatingCode(false)
     }
@@ -57,50 +60,22 @@ export default function NewBookingScreen() {
     if (!customer || !draft.barber || !draft.date || !draft.time || draft.services.length === 0) return
     setSubmitting(true)
     try {
-      const total = finalAmount()
-      const pointsEarned = totalPoints()
-
-      const booking = await writeClient.create({
-        _type: 'booking',
-        customer: { _type: 'reference', _ref: customer._id },
-        barber: { _type: 'reference', _ref: draft.barber._id },
-        services: draft.services.map((s) => ({ _type: 'reference', _ref: s._id, _key: s._id })),
-        bookingDate: draft.date,
-        startTime: draft.time,
-        totalAmount: totalAmount(),
-        discountAmount: discount(),
-        pointsEarned,
-        paymentMethod: 'cash',
-        status: 'pending',
-        notes: draft.notes,
-        ...(draft.discountCode ? { discountCode: { _type: 'reference', _ref: draft.discountCode._id } } : {}),
-        createdAt: new Date().toISOString(),
+      // Price, discount and points are recomputed by the server from the
+      // service records; points are credited once the visit is completed.
+      const booking = await api<{ _id: string }>('POST', '/api/v1/bookings', {
+        serviceIds: draft.services.map((s) => s._id),
+        barberId: draft.barber._id,
+        date: draft.date,
+        time: draft.time,
+        notes: draft.notes || undefined,
+        discountCode: draft.discountCode?.code,
       })
-
-      // Award loyalty points
-      const newPoints = customer.loyaltyPoints + pointsEarned
-      const newVisits = customer.totalVisits + 1
-      await writeClient.patch(customer._id).set({ loyaltyPoints: newPoints, totalVisits: newVisits }).commit()
-
-      await writeClient.create({
-        _type: 'loyaltyTransaction',
-        customer: { _type: 'reference', _ref: customer._id },
-        type: 'earn',
-        points: pointsEarned,
-        balanceAfter: newPoints,
-        description: 'Points earned from booking',
-        source: 'booking',
-        referenceId: booking._id,
-        createdAt: new Date().toISOString(),
-      })
-
-      updateCustomer({ loyaltyPoints: newPoints, totalVisits: newVisits })
       resetDraft()
       Alert.alert('Booking Confirmed! ✅', `Your appointment is scheduled for ${draft.date} at ${draft.time}.`, [
         { text: 'View Booking', onPress: () => router.replace(`/booking/${booking._id}`) },
       ])
-    } catch {
-      Alert.alert('Error', 'Failed to create booking. Please try again.')
+    } catch (err) {
+      Alert.alert('Error', errorMessage(err, 'Failed to create booking. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -116,9 +91,9 @@ export default function NewBookingScreen() {
       <View className="px-5 pt-14 pb-4 bg-dark-800">
         <View className="flex-row items-center gap-4 mb-4">
           <TouchableOpacity onPress={() => step === 0 ? router.back() : setStep(step - 1)}>
-            <Ionicons name="arrow-back" size={24} color="white" />
+            <Ionicons name="arrow-back" size={24} className="text-fg" />
           </TouchableOpacity>
-          <Text className="text-white text-xl font-bold">Book Appointment</Text>
+          <Text className="text-fg text-xl font-bold">Book Appointment</Text>
         </View>
         {/* Step indicator */}
         <View className="flex-row gap-2">
@@ -135,6 +110,53 @@ export default function NewBookingScreen() {
         {/* Step 0: Select Services */}
         {step === 0 && (
           <View className="gap-3">
+            {/* Style inspiration gallery */}
+            <View className="mb-2">
+              <View className="bg-primary-500/10 border border-primary-500/30 rounded-2xl p-4 flex-row items-center gap-3 mb-4">
+                <Ionicons name="sparkles" size={20} color="#F1A91F" />
+                <Text className="text-dark-100 text-sm flex-1">
+                  Not sure what to book? Browse styles below, then head to the AI tab to try any of them on your own photo first.
+                </Text>
+              </View>
+
+              <Text className="text-fg font-bold text-base mb-3">Style Inspiration</Text>
+
+              <View className="flex-row bg-dark-800 rounded-full p-1 mb-4 self-start">
+                {(['male', 'female'] as const).map((g) => (
+                  <TouchableOpacity
+                    key={g}
+                    onPress={() => setStyleGender(g)}
+                    className={`px-5 py-2 rounded-full ${styleGender === g ? 'bg-primary-500' : ''}`}
+                  >
+                    <Text className={`text-sm font-semibold ${styleGender === g ? 'text-white' : 'text-dark-400'}`}>
+                      {g === 'male' ? 'Men' : 'Women'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 4 }}>
+                {TRY_ON_STYLES.filter((s) => s.gender === styleGender || s.gender === 'unisex').map((s) => (
+                  <View key={s.id} className="bg-dark-800 rounded-2xl overflow-hidden border border-dark-700" style={{ width: 140 }}>
+                    <Image source={getStyleImage(s.id, styleGender)} style={{ width: '100%', height: 160 }} contentFit="cover" />
+                    <View className="p-3 gap-1">
+                      <Text className="text-fg font-semibold text-sm" numberOfLines={1}>{s.label}</Text>
+                      <Text className="text-dark-400 text-xs" numberOfLines={2}>{s.blurb}</Text>
+                      <TouchableOpacity
+                        className="mt-2 bg-primary-500/15 border border-primary-500/40 rounded-full py-1.5 items-center flex-row justify-center gap-1"
+                        onPress={() => router.push(`/ai/tryon?styleId=${s.id}`)}
+                      >
+                        <Ionicons name="color-wand-outline" size={12} color="#F1A91F" />
+                        <Text className="text-primary-400 text-xs font-semibold">Try it on</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View className="h-px bg-dark-700 mb-2" />
+
             <Text className="text-dark-300 text-sm mb-2">Select one or more services</Text>
             {services.map((service) => {
               const selected = draft.services.some((s) => s._id === service._id)
@@ -148,7 +170,7 @@ export default function NewBookingScreen() {
                     <Image source={{ uri: urlFor(service.image).width(100).url() }} className="w-16 h-16 rounded-xl" contentFit="cover" />
                   )}
                   <View className="flex-1">
-                    <Text className="text-white font-semibold">{service.name}</Text>
+                    <Text className="text-fg font-semibold">{service.name}</Text>
                     <Text className="text-dark-400 text-sm">{service.duration} min</Text>
                     <Text className="text-primary-400 font-bold">{formatPrice(service.price)}</Text>
                   </View>
@@ -179,7 +201,7 @@ export default function NewBookingScreen() {
                   )}
                 </View>
                 <View className="flex-1">
-                  <Text className="text-white font-semibold">{barber.name}</Text>
+                  <Text className="text-fg font-semibold">{barber.name}</Text>
                   <View className="flex-row items-center gap-1 mt-1">
                     <Ionicons name="star" size={12} color="#F59E0B" />
                     <Text className="text-yellow-400 text-sm">{barber.rating?.toFixed(1)}</Text>
@@ -216,7 +238,7 @@ export default function NewBookingScreen() {
                       onPress={() => setDate(dateStr)}
                     >
                       <Text className={`text-xs ${selected ? 'text-white' : 'text-dark-400'}`}>{day}</Text>
-                      <Text className={`text-xl font-bold ${selected ? 'text-white' : 'text-white'}`}>{num}</Text>
+                      <Text className={`text-xl font-bold ${selected ? 'text-white' : 'text-fg'}`}>{num}</Text>
                       <Text className={`text-xs ${selected ? 'text-white' : 'text-dark-400'}`}>{month}</Text>
                     </TouchableOpacity>
                   )
@@ -240,7 +262,7 @@ export default function NewBookingScreen() {
             <View>
               <Text className="text-dark-300 text-sm mb-3">Notes (optional)</Text>
               <TextInput
-                className="bg-dark-800 text-white px-4 py-3 rounded-xl border border-dark-700 h-24"
+                className="bg-dark-800 text-fg px-4 py-3 rounded-xl border border-dark-700 h-24"
                 placeholder="Any special requests..."
                 placeholderTextColor="#686868"
                 multiline
@@ -256,29 +278,29 @@ export default function NewBookingScreen() {
         {step === 3 && (
           <View className="gap-5">
             <View className="bg-dark-800 rounded-2xl p-5 gap-4">
-              <Text className="text-white font-bold text-lg">Booking Summary</Text>
+              <Text className="text-fg font-bold text-lg">Booking Summary</Text>
               <View className="gap-2">
                 <View className="flex-row justify-between">
                   <Text className="text-dark-400">Services</Text>
-                  <Text className="text-white">{draft.services.map((s) => s.name).join(', ')}</Text>
+                  <Text className="text-fg">{draft.services.map((s) => s.name).join(', ')}</Text>
                 </View>
                 <View className="flex-row justify-between">
                   <Text className="text-dark-400">Barber</Text>
-                  <Text className="text-white">{draft.barber?.name}</Text>
+                  <Text className="text-fg">{draft.barber?.name}</Text>
                 </View>
                 <View className="flex-row justify-between">
                   <Text className="text-dark-400">Date & Time</Text>
-                  <Text className="text-white">{draft.date} at {draft.time}</Text>
+                  <Text className="text-fg">{draft.date} at {draft.time}</Text>
                 </View>
                 <View className="flex-row justify-between">
                   <Text className="text-dark-400">Duration</Text>
-                  <Text className="text-white">{totalDuration()} minutes</Text>
+                  <Text className="text-fg">{totalDuration()} minutes</Text>
                 </View>
               </View>
               <View className="border-t border-dark-700 pt-4 gap-2">
                 <View className="flex-row justify-between">
                   <Text className="text-dark-400">Subtotal</Text>
-                  <Text className="text-white">{formatPrice(totalAmount())}</Text>
+                  <Text className="text-fg">{formatPrice(totalAmount())}</Text>
                 </View>
                 {discount() > 0 && (
                   <View className="flex-row justify-between">
@@ -287,9 +309,14 @@ export default function NewBookingScreen() {
                   </View>
                 )}
                 <View className="flex-row justify-between">
-                  <Text className="text-white font-bold text-lg">Total</Text>
+                  <Text className="text-fg font-bold text-lg">Total</Text>
                   <Text className="text-primary-400 font-bold text-lg">{formatPrice(finalAmount())}</Text>
                 </View>
+                {currency !== 'NGN' && (
+                  <Text className="text-dark-400 text-xs text-right">
+                    Charged in Naira: ₦{(finalAmount() / 100).toLocaleString('en-NG')}
+                  </Text>
+                )}
                 <View className="flex-row justify-between">
                   <Text className="text-primary-400 text-sm">Points to earn</Text>
                   <Text className="text-primary-400 text-sm font-medium">+{totalPoints()} pts</Text>
@@ -299,10 +326,10 @@ export default function NewBookingScreen() {
 
             {/* Discount Code */}
             <View className="bg-dark-800 rounded-2xl p-4">
-              <Text className="text-white font-medium mb-3">Discount Code</Text>
+              <Text className="text-fg font-medium mb-3">Discount Code</Text>
               <View className="flex-row gap-3">
                 <TextInput
-                  className="flex-1 bg-dark-700 text-white px-4 py-3 rounded-xl border border-dark-600"
+                  className="flex-1 bg-dark-700 text-fg px-4 py-3 rounded-xl border border-dark-600"
                   placeholder="Enter code..."
                   placeholderTextColor="#686868"
                   autoCapitalize="characters"

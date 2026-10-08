@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { writeClient } from '@/lib/sanity'
+import { updateBookingStatus } from '../actions'
 import type { BookingStatus } from '@cutty/types'
 import { useRouter } from 'next/navigation'
 
@@ -29,8 +29,9 @@ export function BookingActions({ bookingId, currentStatus }: { bookingId: string
 
   async function updateStatus(status: BookingStatus) {
     setLoading(true)
-    await writeClient.patch(bookingId).set({ status }).commit()
+    const result = await updateBookingStatus(bookingId, status)
     setLoading(false)
+    if (!result.ok) alert(result.error)
     router.refresh()
   }
 

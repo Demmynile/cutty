@@ -1,10 +1,19 @@
 import { Redirect, Tabs } from 'expo-router'
 import { useAuthStore } from '@/store/authStore'
+import { useOnboardingStore } from '@/store/onboardingStore'
 import { COLORS } from '@/constants'
+import { useTheme } from '@/lib/theme'
 import { Ionicons } from '@expo/vector-icons'
 
 export default function TabsLayout() {
   const { isAuthenticated, isLoading } = useAuthStore()
+  const { hydrated, completedThisSession } = useOnboardingStore()
+  const { colors } = useTheme()
+
+  // Play the intro slideshow on every app launch, until it's dismissed this session.
+  if (hydrated && !completedThisSession) {
+    return <Redirect href="/onboarding" />
+  }
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)" />
@@ -15,15 +24,15 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1A1A1A',
-          borderTopColor: '#282828',
+          backgroundColor: colors['dark-800'],
+          borderTopColor: colors['dark-700'],
           borderTopWidth: 1,
           height: 80,
           paddingBottom: 16,
           paddingTop: 8,
         },
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.gray,
+        tabBarInactiveTintColor: colors['dark-400'],
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
       }}
     >
@@ -53,6 +62,13 @@ export default function TabsLayout() {
         options={{
           title: 'Rewards',
           tabBarIcon: ({ color, size }) => <Ionicons name="star" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ai"
+        options={{
+          title: 'AI',
+          tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

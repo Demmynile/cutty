@@ -3,13 +3,15 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput,
 import { router } from 'expo-router'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
-import { sanityClient, urlFor, formatPrice } from '@/lib/sanity'
-import { PRODUCTS_ACTIVE, CATEGORIES_ALL } from '@/lib/queries'
+import { urlFor } from '@/lib/sanity'
+import { api } from '@/lib/api'
 import type { Product, Category } from '@cutty/types'
 import { useCartStore } from '@/store/cartStore'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice } from '@/lib/currency'
 
 export default function ShopScreen() {
+  const formatPrice = useFormatPrice()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [activeCategory, setActiveCategory] = useState<string>('all')
@@ -20,8 +22,8 @@ export default function ShopScreen() {
 
   async function fetchData() {
     const [prods, cats] = await Promise.all([
-      sanityClient.fetch(PRODUCTS_ACTIVE),
-      sanityClient.fetch(CATEGORIES_ALL),
+      api<Product[]>('GET', '/api/v1/catalog/products'),
+      api<Category[]>('GET', '/api/v1/catalog/categories'),
     ])
     setProducts(prods)
     setCategories(cats)
@@ -42,9 +44,9 @@ export default function ShopScreen() {
       {/* Header */}
       <View className="px-5 pt-14 pb-4 bg-dark-800">
         <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-white text-2xl font-bold">Shop</Text>
+          <Text className="text-fg text-2xl font-bold">Shop</Text>
           <TouchableOpacity className="relative" onPress={() => router.push('/cart')}>
-            <Ionicons name="bag-outline" size={26} color="white" />
+            <Ionicons name="bag-outline" size={26} className="text-fg" />
             {itemCount() > 0 && (
               <View className="absolute -top-2 -right-2 bg-primary-500 w-5 h-5 rounded-full items-center justify-center">
                 <Text className="text-white text-xs font-bold">{itemCount()}</Text>
@@ -55,9 +57,9 @@ export default function ShopScreen() {
 
         {/* Search */}
         <View className="bg-dark-700 flex-row items-center px-4 py-3 rounded-xl gap-3 mb-4">
-          <Ionicons name="search" size={18} color="#686868" />
+          <Ionicons name="search" size={18} className="text-dark-500" />
           <TextInput
-            className="flex-1 text-white text-sm"
+            className="flex-1 text-fg text-sm"
             placeholder="Search products..."
             placeholderTextColor="#686868"
             value={search}
@@ -122,7 +124,7 @@ export default function ShopScreen() {
                       />
                     ) : (
                       <View className="w-full h-40 bg-dark-700 items-center justify-center">
-                        <Ionicons name="image-outline" size={32} color="#484848" />
+                        <Ionicons name="image-outline" size={32} className="text-dark-600" />
                       </View>
                     )}
                     <LinearGradient
@@ -157,7 +159,7 @@ export default function ShopScreen() {
                       </Text>
                     )}
                     <Text
-                      className="text-white text-sm font-semibold leading-[18px]"
+                      className="text-fg text-sm font-semibold leading-[18px]"
                       style={{ minHeight: 36 }}
                       numberOfLines={2}
                     >
@@ -189,7 +191,7 @@ export default function ShopScreen() {
           </View>
           {filtered.length === 0 && (
             <View className="items-center py-20">
-              <Ionicons name="search-outline" size={48} color="#484848" />
+              <Ionicons name="search-outline" size={48} className="text-dark-600" />
               <Text className="text-dark-400 mt-4">No products found</Text>
             </View>
           )}

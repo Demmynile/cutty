@@ -1,6 +1,15 @@
 export const CUSTOMER_BY_UID = `*[_type == "customer" && uid == $uid][0]{
   _id, uid, fullName, email, phone, avatar, walletBalance,
-  loyaltyPoints, totalVisits, tier, isActive, createdAt
+  loyaltyPoints, totalVisits, tier, paymentMethods, preferredLanguage,
+  preferredCurrency, notificationPreferences, isActive, createdAt
+}`
+
+export const EXCHANGE_RATES = `*[_type == "settings"][0].exchangeRates`
+
+// Deliberately narrow: only used for password verification during login,
+// never merged into the general customer/session state.
+export const CUSTOMER_AUTH_BY_UID = `*[_type == "customer" && uid == $uid][0]{
+  _id, password
 }`
 
 export const SERVICES_ACTIVE = `*[_type == "service" && isActive == true] | order(_createdAt asc){

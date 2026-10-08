@@ -5,7 +5,7 @@ import { schemaTypes } from './schemas'
 
 export default defineConfig({
   name: 'cutty-studio',
-  title: 'Cutty Barbershop Studio',
+  title: 'Cutty Barbershop & Salon Studio',
   projectId: process.env.SANITY_STUDIO_PROJECT_ID!,
   dataset: process.env.SANITY_STUDIO_DATASET || 'production',
   plugins: [
@@ -16,7 +16,7 @@ export default defineConfig({
           .items([
             S.listItem().title('Bookings').child(S.documentTypeList('booking')),
             S.listItem().title('Services').child(S.documentTypeList('service')),
-            S.listItem().title('Barbers').child(S.documentTypeList('barber')),
+            S.listItem().title('Stylists').child(S.documentTypeList('barber')),
             S.divider(),
             S.listItem().title('Products').child(S.documentTypeList('product')),
             S.listItem().title('Categories').child(S.documentTypeList('category')),

@@ -3,13 +3,15 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshCon
 import { router } from 'expo-router'
 import { Image } from 'expo-image'
 import { useAuthStore } from '@/store/authStore'
-import { sanityClient, urlFor, formatPrice } from '@/lib/sanity'
-import { SERVICES_ACTIVE, PRODUCTS_FEATURED, BOOKINGS_BY_CUSTOMER } from '@/lib/queries'
+import { urlFor } from '@/lib/sanity'
+import { api } from '@/lib/api'
 import type { Service, Product, Booking } from '@cutty/types'
 import { TIER_COLORS } from '@/constants'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice } from '@/lib/currency'
 
 export default function HomeScreen() {
+  const formatPrice = useFormatPrice()
   const { customer } = useAuthStore()
   const [services, setServices] = useState<Service[]>([])
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
@@ -20,9 +22,9 @@ export default function HomeScreen() {
   async function fetchData() {
     if (!customer) return
     const [svcs, products, bookings] = await Promise.all([
-      sanityClient.fetch(SERVICES_ACTIVE),
-      sanityClient.fetch(PRODUCTS_FEATURED),
-      sanityClient.fetch(BOOKINGS_BY_CUSTOMER, { customerId: customer._id }),
+      api<Service[]>('GET', '/api/v1/catalog/services'),
+      api<Product[]>('GET', '/api/v1/catalog/products?featured=1'),
+      api<Booking[]>('GET', '/api/v1/bookings'),
     ])
     setServices(svcs)
     setFeaturedProducts(products)
@@ -64,11 +66,11 @@ export default function HomeScreen() {
         <View className="flex-row items-center justify-between">
           <View>
             <Text className="text-dark-400 text-sm">{greeting} 👋</Text>
-            <Text className="text-white text-2xl font-bold mt-1">{customer?.fullName?.split(' ')[0]}</Text>
+            <Text className="text-fg text-2xl font-bold mt-1">{customer?.fullName?.split(' ')[0]}</Text>
           </View>
           <TouchableOpacity onPress={() => router.push('/wallet')} className="items-end">
             <Text className="text-dark-400 text-xs">Wallet Balance</Text>
-            <Text className="text-white text-xl font-bold">{formatPrice(customer?.walletBalance || 0)}</Text>
+            <Text className="text-fg text-xl font-bold">{formatPrice(customer?.walletBalance || 0)}</Text>
           </TouchableOpacity>
         </View>
 
@@ -78,7 +80,7 @@ export default function HomeScreen() {
             <Text style={{ color: tierColor }}>⭐</Text>
           </View>
           <View className="flex-1">
-            <Text className="text-white font-semibold capitalize">{customer?.tier} Member</Text>
+            <Text className="text-fg font-semibold capitalize">{customer?.tier} Member</Text>
             <Text className="text-dark-400 text-xs">{customer?.loyaltyPoints} points available</Text>
           </View>
           <TouchableOpacity onPress={() => router.push('/(tabs)/loyalty')}>
@@ -116,9 +118,9 @@ export default function HomeScreen() {
         >
           <View className="flex-row items-center gap-3">
             <View className="w-10 h-10 bg-primary-500/20 rounded-xl items-center justify-center">
-              <Ionicons name="scissors" size={20} color="#D4891A" />
+              <Ionicons name="cut" size={20} color="#D4891A" />
             </View>
-            <Text className="text-white font-semibold text-base">Book an Appointment</Text>
+            <Text className="text-fg font-semibold text-base">Book an Appointment</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#D4891A" />
         </TouchableOpacity>
@@ -127,7 +129,7 @@ export default function HomeScreen() {
       {/* Services */}
       <View className="mt-6">
         <View className="flex-row items-center justify-between px-5 mb-3">
-          <Text className="text-white font-bold text-lg">Our Services</Text>
+          <Text className="text-fg font-bold text-lg">Our Services</Text>
           <TouchableOpacity onPress={() => router.push('/booking/new')}>
             <Text className="text-primary-400 text-sm">Book now →</Text>
           </TouchableOpacity>
@@ -142,7 +144,7 @@ export default function HomeScreen() {
               {service.image && (
                 <Image source={{ uri: urlFor(service.image).width(200).url() }} className="w-full h-24 rounded-xl mb-3" contentFit="cover" />
               )}
-              <Text className="text-white font-semibold text-sm" numberOfLines={2}>{service.name}</Text>
+              <Text className="text-fg font-semibold text-sm" numberOfLines={2}>{service.name}</Text>
               <Text className="text-primary-400 text-sm font-bold mt-1">{formatPrice(service.price)}</Text>
               <Text className="text-dark-400 text-xs">{service.duration} min</Text>
             </TouchableOpacity>
@@ -154,7 +156,7 @@ export default function HomeScreen() {
       {featuredProducts.length > 0 && (
         <View className="mt-6">
           <View className="flex-row items-center justify-between px-5 mb-3">
-            <Text className="text-white font-bold text-lg">Shop Products</Text>
+            <Text className="text-fg font-bold text-lg">Shop Products</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/shop')}>
               <Text className="text-primary-400 text-sm">See all →</Text>
             </TouchableOpacity>
@@ -170,7 +172,7 @@ export default function HomeScreen() {
                   <Image source={{ uri: urlFor(product.images[0]).width(200).url() }} className="w-full h-32" contentFit="cover" />
                 )}
                 <View className="p-3">
-                  <Text className="text-white text-sm font-medium" numberOfLines={2}>{product.name}</Text>
+                  <Text className="text-fg text-sm font-medium" numberOfLines={2}>{product.name}</Text>
                   <View className="flex-row items-center justify-between mt-2">
                     <Text className="text-primary-400 font-bold">{formatPrice(product.price)}</Text>
                     {product.compareAtPrice && (

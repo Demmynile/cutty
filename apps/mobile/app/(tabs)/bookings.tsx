@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native'
 import { router } from 'expo-router'
 import { useAuthStore } from '@/store/authStore'
-import { sanityClient } from '@/lib/sanity'
-import { BOOKINGS_BY_CUSTOMER } from '@/lib/queries'
+import { api } from '@/lib/api'
 import type { Booking, BookingStatus } from '@cutty/types'
-import { formatPrice } from '@/lib/sanity'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice } from '@/lib/currency'
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
   pending: '#F59E0B',
@@ -20,6 +19,7 @@ const STATUS_COLOR: Record<BookingStatus, string> = {
 const FILTERS: Array<BookingStatus | 'all'> = ['all', 'pending', 'confirmed', 'completed', 'cancelled']
 
 export default function BookingsScreen() {
+  const formatPrice = useFormatPrice()
   const { customer } = useAuthStore()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [filter, setFilter] = useState<BookingStatus | 'all'>('all')
@@ -28,7 +28,7 @@ export default function BookingsScreen() {
 
   async function fetchBookings() {
     if (!customer) return
-    const data = await sanityClient.fetch(BOOKINGS_BY_CUSTOMER, { customerId: customer._id })
+    const data = await api<Booking[]>('GET', '/api/v1/bookings')
     setBookings(data)
   }
 
@@ -43,7 +43,7 @@ export default function BookingsScreen() {
       {/* Header */}
       <View className="px-5 pt-14 pb-4 bg-dark-800">
         <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-white text-2xl font-bold">My Bookings</Text>
+          <Text className="text-fg text-2xl font-bold">My Bookings</Text>
           <TouchableOpacity
             className="bg-primary-500 px-4 py-2 rounded-xl flex-row items-center gap-2"
             onPress={() => router.push('/booking/new')}
@@ -71,8 +71,8 @@ export default function BookingsScreen() {
         </View>
       ) : filtered.length === 0 ? (
         <View className="flex-1 items-center justify-center px-10">
-          <Ionicons name="calendar-outline" size={64} color="#484848" />
-          <Text className="text-white text-xl font-bold mt-4 text-center">No bookings yet</Text>
+          <Ionicons name="calendar-outline" size={64} className="text-dark-600" />
+          <Text className="text-fg text-xl font-bold mt-4 text-center">No bookings yet</Text>
           <Text className="text-dark-400 text-center mt-2">Book your first appointment to get started</Text>
           <TouchableOpacity className="bg-primary-500 mt-6 px-8 py-3 rounded-xl" onPress={() => router.push('/booking/new')}>
             <Text className="text-white font-semibold">Book Now</Text>
@@ -92,7 +92,7 @@ export default function BookingsScreen() {
             >
               <View className="flex-row items-start justify-between">
                 <View className="flex-1">
-                  <Text className="text-white font-bold text-base">{booking.bookingDate}</Text>
+                  <Text className="text-fg font-bold text-base">{booking.bookingDate}</Text>
                   <Text className="text-dark-400 text-sm mt-1">
                     {booking.startTime} · {booking.barber?.name}
                   </Text>
@@ -106,7 +106,7 @@ export default function BookingsScreen() {
                       {booking.status.replace('_', ' ')}
                     </Text>
                   </View>
-                  <Text className="text-white font-bold">{formatPrice(booking.totalAmount)}</Text>
+                  <Text className="text-fg font-bold">{formatPrice(booking.totalAmount)}</Text>
                 </View>
               </View>
               {booking.pointsEarned > 0 && (

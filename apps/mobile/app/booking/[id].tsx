@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Image } from 'expo-image'
-import { sanityClient, writeClient, urlFor, formatPrice } from '@/lib/sanity'
-import { BOOKING_BY_ID } from '@/lib/queries'
+import { urlFor } from '@/lib/sanity'
+import { api, errorMessage } from '@/lib/api'
 import type { Booking, BookingStatus } from '@cutty/types'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice } from '@/lib/currency'
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
   pending: '#F59E0B', confirmed: '#3B82F6', in_progress: '#8B5CF6',
@@ -13,13 +14,14 @@ const STATUS_COLOR: Record<BookingStatus, string> = {
 }
 
 export default function BookingDetailScreen() {
+  const formatPrice = useFormatPrice()
   const { id } = useLocalSearchParams<{ id: string }>()
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelling, setCancelling] = useState(false)
 
   useEffect(() => {
-    sanityClient.fetch(BOOKING_BY_ID, { id }).then(setBooking).finally(() => setLoading(false))
+    api<Booking>('GET', `/api/v1/bookings/${encodeURIComponent(id)}`).then(setBooking).catch(() => setBooking(null)).finally(() => setLoading(false))
   }, [id])
 
   async function cancelBooking() {
@@ -29,9 +31,14 @@ export default function BookingDetailScreen() {
       {
         text: 'Cancel Booking', style: 'destructive', onPress: async () => {
           setCancelling(true)
-          await writeClient.patch(booking._id).set({ status: 'cancelled', cancelReason: 'Cancelled by customer' }).commit()
-          setBooking({ ...booking, status: 'cancelled' })
-          setCancelling(false)
+          try {
+            await api('POST', `/api/v1/bookings/${encodeURIComponent(booking._id)}/cancel`)
+            setBooking({ ...booking, status: 'cancelled' })
+          } catch (err) {
+            Alert.alert('Error', errorMessage(err, 'Could not cancel this booking.'))
+          } finally {
+            setCancelling(false)
+          }
         },
       },
     ])
@@ -45,15 +52,15 @@ export default function BookingDetailScreen() {
   return (
     <View className="flex-1 bg-dark-900">
       <View className="px-5 pt-14 pb-4 bg-dark-800 flex-row items-center gap-4">
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color="white" /></TouchableOpacity>
-        <Text className="text-white text-xl font-bold">Booking Details</Text>
+        <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} className="text-fg" /></TouchableOpacity>
+        <Text className="text-fg text-xl font-bold">Booking Details</Text>
       </View>
 
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, gap: 16 }}>
         {/* Status */}
         <View className="bg-dark-800 rounded-2xl p-5">
           <View className="flex-row items-center justify-between">
-            <Text className="text-white font-bold text-lg">{booking.bookingDate}</Text>
+            <Text className="text-fg font-bold text-lg">{booking.bookingDate}</Text>
             <View className="px-3 py-1 rounded-full" style={{ backgroundColor: statusColor + '33' }}>
               <Text className="font-medium capitalize" style={{ color: statusColor }}>{booking.status.replace('_', ' ')}</Text>
             </View>
@@ -72,7 +79,7 @@ export default function BookingDetailScreen() {
                 <Text className="text-primary-400 text-xl font-bold">{booking.barber?.name?.charAt(0)}</Text>
               )}
             </View>
-            <Text className="text-white font-semibold text-lg">{booking.barber?.name}</Text>
+            <Text className="text-fg font-semibold text-lg">{booking.barber?.name}</Text>
           </View>
         </View>
 
@@ -81,7 +88,7 @@ export default function BookingDetailScreen() {
           <Text className="text-dark-400 text-sm mb-3">SERVICES</Text>
           {booking.services?.map((s) => (
             <View key={s._id} className="flex-row justify-between py-2 border-b border-dark-700 last:border-0">
-              <Text className="text-white">{s.name}</Text>
+              <Text className="text-fg">{s.name}</Text>
               <Text className="text-primary-400">{formatPrice(s.price)}</Text>
             </View>
           ))}
@@ -93,7 +100,7 @@ export default function BookingDetailScreen() {
           <View className="gap-2">
             <View className="flex-row justify-between">
               <Text className="text-dark-400">Subtotal</Text>
-              <Text className="text-white">{formatPrice(booking.totalAmount + booking.discountAmount)}</Text>
+              <Text className="text-fg">{formatPrice(booking.totalAmount + booking.discountAmount)}</Text>
             </View>
             {booking.discountAmount > 0 && (
               <View className="flex-row justify-between">
@@ -102,7 +109,7 @@ export default function BookingDetailScreen() {
               </View>
             )}
             <View className="flex-row justify-between">
-              <Text className="text-white font-bold">Total Paid</Text>
+              <Text className="text-fg font-bold">Total Paid</Text>
               <Text className="text-primary-400 font-bold">{formatPrice(booking.totalAmount)}</Text>
             </View>
             <View className="flex-row justify-between">
@@ -116,7 +123,7 @@ export default function BookingDetailScreen() {
         {booking.notes && (
           <View className="bg-dark-800 rounded-2xl p-5">
             <Text className="text-dark-400 text-sm mb-2">NOTES</Text>
-            <Text className="text-white">{booking.notes}</Text>
+            <Text className="text-fg">{booking.notes}</Text>
           </View>
         )}
 

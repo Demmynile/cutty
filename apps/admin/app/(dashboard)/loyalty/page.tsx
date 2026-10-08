@@ -35,7 +35,7 @@ export default async function LoyaltyPage() {
         <p className="text-gray-400 mt-1">Manage points, tiers, and discount codes</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-gray-900 rounded-2xl p-5">
           <p className="text-gray-400 text-sm">Total Points Issued</p>
           <p className="text-white text-2xl font-bold mt-1">{totalPointsIssued.toLocaleString()}</p>
@@ -101,11 +101,12 @@ export default async function LoyaltyPage() {
       </div>
 
       {/* Transaction History */}
-      <div className="bg-gray-900 rounded-2xl overflow-hidden">
+      <div className="bg-gray-900 rounded-2xl overflow-hidden hidden md:block">
         <div className="px-6 py-4 border-b border-gray-800">
           <h2 className="text-white font-bold text-lg">Points Transaction History</h2>
         </div>
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[820px]">
           <thead>
             <tr className="border-b border-gray-800">
               {['Customer', 'Type', 'Points', 'Balance After', 'Source', 'Description', 'Date'].map((h) => (
@@ -137,7 +138,39 @@ export default async function LoyaltyPage() {
             ))}
           </tbody>
         </table>
+        </div>
         {(transactions as LoyaltyTransaction[]).length === 0 && <div className="text-center py-16 text-gray-400">No loyalty transactions yet</div>}
+      </div>
+
+      {/* Transaction History (mobile) */}
+      <div className="bg-gray-900 rounded-2xl overflow-hidden md:hidden">
+        <div className="px-4 py-3 border-b border-gray-800">
+          <h2 className="text-white font-bold text-lg">Points Transaction History</h2>
+        </div>
+        <div className="p-4 space-y-3">
+          {(transactions as LoyaltyTransaction[]).map((tx) => (
+            <div key={tx._id} className="bg-gray-800/50 rounded-xl p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-white text-sm">{(tx as any).customer?.fullName}</p>
+                <span className={`font-bold text-sm shrink-0 ${tx.points > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {tx.points > 0 ? '+' : ''}{tx.points}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium capitalize px-2 py-0.5 rounded-full ${tx.type === 'earn' || tx.type === 'bonus' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                  {tx.type}
+                </span>
+                <span className="text-gray-400 text-xs capitalize">{tx.source}</span>
+              </div>
+              {tx.description && <p className="text-gray-300 text-sm">{tx.description}</p>}
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <p className="text-white">{tx.balanceAfter?.toLocaleString()} pts balance</p>
+                <p className="text-gray-400">{new Date(tx.createdAt).toLocaleDateString()}</p>
+              </div>
+            </div>
+          ))}
+          {(transactions as LoyaltyTransaction[]).length === 0 && <div className="text-center py-16 text-gray-400">No loyalty transactions yet</div>}
+        </div>
       </div>
     </div>
   )

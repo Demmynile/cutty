@@ -1,3 +1,5 @@
+import { adminUser } from './adminUser'
+import { auditLog } from './auditLog'
 import { barber } from './barber'
 import { booking } from './booking'
 import { category } from './category'
@@ -22,4 +24,6 @@ export const schemaTypes = [
   walletTransaction,
   discountCode,
   settings,
+  adminUser,
+  auditLog,
 ]

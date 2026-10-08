@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dark-theme defaults; lib/theme.ts overrides these at the app root via vars(). */
+:root {
+  --color-fg: 255 255 255;
+  --color-primary-400: 241 169 31;
+  --color-dark-50: 248 248 248;
+  --color-dark-100: 232 232 232;
+  --color-dark-200: 200 200 200;
+  --color-dark-300: 168 168 168;
+  --color-dark-400: 136 136 136;
+  --color-dark-500: 104 104 104;
+  --color-dark-600: 72 72 72;
+  --color-dark-700: 40 40 40;
+  --color-dark-800: 26 26 26;
+  --color-dark-900: 17 17 17;
+}

@@ -12,7 +12,7 @@ export default async function ServicesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h1 className="text-white text-3xl font-bold">Services</h1>
           <p className="text-gray-400 mt-1">{services.length} services configured</p>
@@ -20,8 +20,9 @@ export default async function ServicesPage() {
         <p className="text-gray-400 text-sm">Manage in Sanity Studio →</p>
       </div>
 
-      <div className="bg-gray-900 rounded-2xl overflow-hidden">
-        <table className="w-full">
+      <div className="bg-gray-900 rounded-2xl overflow-hidden hidden md:block">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px]">
           <thead>
             <tr className="border-b border-gray-800">
               {['Service', 'Category', 'Price', 'Duration', 'Points', 'Status'].map((h) => (
@@ -49,7 +50,44 @@ export default async function ServicesPage() {
             ))}
           </tbody>
         </table>
+        </div>
         {services.length === 0 && <div className="text-center py-16 text-gray-400">No services yet. Add them in Sanity Studio.</div>}
+      </div>
+
+      {/* Cards (mobile) */}
+      <div className="md:hidden space-y-3">
+        {services.map((s) => (
+          <div key={s._id} className="bg-gray-900 rounded-2xl p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-white font-medium">{s.name}</p>
+                {s.description && <p className="text-gray-400 text-xs mt-0.5">{s.description}</p>}
+              </div>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0 ${s.isActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                {s.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div>
+                <p className="text-gray-500 text-xs">Category</p>
+                <p className="text-gray-300 capitalize">{s.category || '—'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs">Price</p>
+                <p className="text-primary-400 font-bold">{formatPrice(s.price)}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs">Duration</p>
+                <p className="text-white">{s.duration} min</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs">Points</p>
+                <p className="text-yellow-400">+{s.pointsEarned} pts</p>
+              </div>
+            </div>
+          </div>
+        ))}
+        {services.length === 0 && <div className="text-center py-16 text-gray-400 bg-gray-900 rounded-2xl">No services yet. Add them in Sanity Studio.</div>}
       </div>
     </div>
   )

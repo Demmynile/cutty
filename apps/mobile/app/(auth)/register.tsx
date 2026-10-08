@@ -4,15 +4,16 @@ import { router } from 'expo-router'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { writeClient } from '@/lib/sanity'
-import { createCustomerInSanity, storeAuthData } from '@/lib/auth'
+import type { Customer } from '@cutty/types'
+import { api, errorMessage } from '@/lib/api'
+import { storeAuthToken } from '@/lib/auth'
 import { useAuthStore } from '@/store/authStore'
 
 const schema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(10, 'Enter a valid phone number'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords don't match",
@@ -28,29 +29,15 @@ export default function RegisterScreen() {
     resolver: zodResolver(schema),
   })
 
-  async function onSubmit({ fullName, email, phone }: FormData) {
+  async function onSubmit({ fullName, email, phone, password }: FormData) {
     setLoading(true)
     try {
-      const uid = email.toLowerCase().replace(/[^a-z0-9]/g, '')
-      const customer = await createCustomerInSanity(uid, fullName, email, phone)
-      await storeAuthData('demo_token', uid)
-      setCustomer({
-        _id: customer._id,
-        _type: 'customer',
-        uid,
-        fullName,
-        email,
-        phone,
-        walletBalance: 0,
-        loyaltyPoints: 0,
-        totalVisits: 0,
-        tier: 'bronze',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-      })
+      const { token, customer } = await api<{ token: string; customer: Customer }>('POST', '/api/v1/auth/register', { fullName, email, phone, password })
+      await storeAuthToken(token)
+      setCustomer(customer)
       router.replace('/(tabs)')
     } catch (err) {
-      Alert.alert('Error', 'Registration failed. Please try again.')
+      Alert.alert('Registration failed', errorMessage(err, 'Registration failed. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -74,7 +61,7 @@ export default function RegisterScreen() {
           <Text className="text-primary-400 text-base">← Back</Text>
         </TouchableOpacity>
 
-        <Text className="text-white text-3xl font-bold mb-2">Create account</Text>
+        <Text className="text-fg text-3xl font-bold mb-2">Create account</Text>
         <Text className="text-dark-400 text-base mb-10">Join Cutty and start your journey</Text>
 
         <View className="gap-5">
@@ -87,7 +74,7 @@ export default function RegisterScreen() {
                 <View>
                   <Text className="text-dark-300 text-sm mb-2">{label}</Text>
                   <TextInput
-                    className="bg-dark-800 text-white px-4 py-4 rounded-xl border border-dark-700"
+                    className="bg-dark-800 text-fg px-4 py-4 rounded-xl border border-dark-700"
                     placeholder={placeholder}
                     placeholderTextColor="#686868"
                     secureTextEntry={secure}

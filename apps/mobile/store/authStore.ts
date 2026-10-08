@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Customer } from '@cutty/types'
-import { clearAuthData, storeAuthData } from '@/lib/auth'
+import { clearAuthData } from '@/lib/auth'
+import { setUnauthorizedHandler } from '@/lib/api'
 
 interface AuthState {
   customer: Customer | null
@@ -34,3 +35,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ customer: null, isAuthenticated: false })
   },
 }))
+
+// A revoked or expired session (401 from the API) signs the user out.
+setUnauthorizedHandler(() => {
+  if (useAuthStore.getState().isAuthenticated) useAuthStore.getState().signOut()
+})

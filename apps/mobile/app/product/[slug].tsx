@@ -2,15 +2,17 @@ import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Image } from 'expo-image'
-import { sanityClient, urlFor, formatPrice } from '@/lib/sanity'
-import { PRODUCT_BY_SLUG } from '@/lib/queries'
+import { urlFor } from '@/lib/sanity'
+import { api } from '@/lib/api'
 import type { Product } from '@cutty/types'
 import { useCartStore } from '@/store/cartStore'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice } from '@/lib/currency'
 
 const { width } = Dimensions.get('window')
 
 export default function ProductDetailScreen() {
+  const formatPrice = useFormatPrice()
   const { slug } = useLocalSearchParams<{ slug: string }>()
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
@@ -19,7 +21,7 @@ export default function ProductDetailScreen() {
   const { addItem, items } = useCartStore()
 
   useEffect(() => {
-    sanityClient.fetch(PRODUCT_BY_SLUG, { slug }).then(setProduct).finally(() => setLoading(false))
+    api<Product>('GET', `/api/v1/catalog/products/${encodeURIComponent(slug)}`).then(setProduct).catch(() => setProduct(null)).finally(() => setLoading(false))
   }, [slug])
 
   if (loading) return <View className="flex-1 bg-dark-900 items-center justify-center"><ActivityIndicator color="#D4891A" size="large" /></View>
@@ -51,7 +53,7 @@ export default function ProductDetailScreen() {
                   <Image source={{ uri: urlFor(img).width(width).height(400).url() }} style={{ width, height: 400 }} contentFit="cover" />
                 ) : (
                   <View style={{ width, height: 400 }} className="bg-dark-800 items-center justify-center">
-                    <Ionicons name="image-outline" size={64} color="#484848" />
+                    <Ionicons name="image-outline" size={64} className="text-dark-600" />
                   </View>
                 )}
               </View>
@@ -81,7 +83,7 @@ export default function ProductDetailScreen() {
           {/* Product Info */}
           <View>
             {product.category && <Text className="text-primary-400 text-sm font-medium">{product.category.name}</Text>}
-            <Text className="text-white text-2xl font-bold mt-1">{product.name}</Text>
+            <Text className="text-fg text-2xl font-bold mt-1">{product.name}</Text>
             {product.tags && <Text className="text-dark-400 text-sm mt-1">{product.tags.join(' · ')}</Text>}
           </View>
 
@@ -107,14 +109,14 @@ export default function ProductDetailScreen() {
                 className="w-9 h-9 bg-dark-700 rounded-full items-center justify-center"
                 onPress={() => setQuantity(Math.max(1, quantity - 1))}
               >
-                <Ionicons name="remove" size={16} color="white" />
+                <Ionicons name="remove" size={16} className="text-fg" />
               </TouchableOpacity>
-              <Text className="text-white text-lg font-bold w-8 text-center">{quantity}</Text>
+              <Text className="text-fg text-lg font-bold w-8 text-center">{quantity}</Text>
               <TouchableOpacity
                 className="w-9 h-9 bg-dark-700 rounded-full items-center justify-center"
                 onPress={() => setQuantity(Math.min(product.stock, quantity + 1))}
               >
-                <Ionicons name="add" size={16} color="white" />
+                <Ionicons name="add" size={16} className="text-fg" />
               </TouchableOpacity>
             </View>
             <Text className="text-dark-400 text-sm">{product.stock} in stock</Text>

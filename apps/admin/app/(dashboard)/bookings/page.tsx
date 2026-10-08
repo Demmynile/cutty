@@ -32,7 +32,7 @@ export default async function BookingsPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Total', count: counts.all, color: 'text-white' },
           { label: 'Pending', count: counts.pending, color: 'text-yellow-400' },
@@ -46,12 +46,13 @@ export default async function BookingsPage() {
         ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-gray-900 rounded-2xl overflow-hidden">
-        <table className="w-full">
+      {/* Table (md+) */}
+      <div className="bg-gray-900 rounded-2xl overflow-hidden hidden md:block">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px]">
           <thead>
             <tr className="border-b border-gray-800">
-              {['Customer', 'Date & Time', 'Barber', 'Services', 'Amount', 'Status', 'Actions'].map((h) => (
+              {['Customer', 'Date & Time', 'Stylist', 'Services', 'Amount', 'Status', 'Actions'].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-gray-400 text-xs font-medium uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -85,8 +86,49 @@ export default async function BookingsPage() {
             ))}
           </tbody>
         </table>
+        </div>
         {bookings.length === 0 && (
           <div className="text-center py-16 text-gray-400">No bookings found</div>
+        )}
+      </div>
+
+      {/* Cards (mobile) */}
+      <div className="md:hidden space-y-3">
+        {bookings.map((b) => (
+          <div key={b._id} className="bg-gray-900 rounded-2xl p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-white text-sm font-medium">{(b as any).customer?.fullName}</p>
+                <p className="text-gray-400 text-xs">{(b as any).customer?.phone}</p>
+              </div>
+              <Badge label={b.status} color={bookingStatusColor(b.status)} />
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div>
+                <p className="text-gray-500 text-xs">Date & Time</p>
+                <p className="text-white">{b.bookingDate} · {b.startTime}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs">Stylist</p>
+                <p className="text-white">{(b as any).barber?.name}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-gray-500 text-xs">Services</p>
+                <p className="text-white">{(b as any).services?.map((s: any) => s.name).join(', ')}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs">Amount</p>
+                <p className="text-white font-medium">{formatPrice(b.totalAmount)}</p>
+                {b.discountAmount > 0 && <p className="text-green-400 text-xs">-{formatPrice(b.discountAmount)}</p>}
+              </div>
+            </div>
+            <div className="pt-1 border-t border-gray-800">
+              <BookingActions bookingId={b._id} currentStatus={b.status} />
+            </div>
+          </div>
+        ))}
+        {bookings.length === 0 && (
+          <div className="text-center py-16 text-gray-400 bg-gray-900 rounded-2xl">No bookings found</div>
         )}
       </div>
     </div>

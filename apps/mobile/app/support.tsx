@@ -65,14 +65,14 @@ export default function SupportScreen() {
       {/* Header */}
       <View className="px-5 pt-14 pb-4 bg-dark-800 flex-row items-center gap-4">
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="white" />
+          <Ionicons name="arrow-back" size={24} className="text-fg" />
         </TouchableOpacity>
-        <Text className="text-white text-xl font-bold">Help & Support</Text>
+        <Text className="text-fg text-xl font-bold">Help & Support</Text>
       </View>
 
       {/* Intro */}
       <View className="mx-5 mt-6 mb-2">
-        <Text className="text-white text-lg font-bold">How can we help?</Text>
+        <Text className="text-fg text-lg font-bold">How can we help?</Text>
         <Text className="text-dark-400 text-sm mt-1">
           Reach our team directly or browse answers to common questions below.
         </Text>
@@ -91,10 +91,10 @@ export default function SupportScreen() {
               <Ionicons name={icon} size={20} color="#F1A91F" />
             </View>
             <View className="flex-1">
-              <Text className="text-white text-base font-semibold">{label}</Text>
+              <Text className="text-fg text-base font-semibold">{label}</Text>
               <Text className="text-dark-400 text-xs mt-0.5">{value}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#484848" />
+            <Ionicons name="chevron-forward" size={16} className="text-dark-600" />
           </TouchableOpacity>
         ))}
       </View>
@@ -113,7 +113,7 @@ export default function SupportScreen() {
                 className="flex-row items-center px-4 py-4 gap-3"
                 onPress={() => setOpenIndex(isOpen ? null : i)}
               >
-                <Text className="text-white text-sm font-medium flex-1">{question}</Text>
+                <Text className="text-fg text-sm font-medium flex-1">{question}</Text>
                 <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#F1A91F" />
               </TouchableOpacity>
               {isOpen && (

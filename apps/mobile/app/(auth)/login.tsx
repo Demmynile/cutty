@@ -4,14 +4,14 @@ import { router } from 'expo-router'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { sanityClient } from '@/lib/sanity'
-import { storeAuthData } from '@/lib/auth'
+import type { Customer } from '@cutty/types'
+import { api, errorMessage } from '@/lib/api'
+import { storeAuthToken } from '@/lib/auth'
 import { useAuthStore } from '@/store/authStore'
-import { CUSTOMER_BY_UID } from '@/lib/queries'
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(1, 'Enter your password'),
 })
 type FormData = z.infer<typeof schema>
 
@@ -26,19 +26,12 @@ export default function LoginScreen() {
   async function onSubmit({ email, password }: FormData) {
     setLoading(true)
     try {
-      // In production, replace with your auth provider (Firebase/Supabase/custom)
-      // This demo uses email as the UID for simplicity
-      const uid = email.toLowerCase().replace(/[^a-z0-9]/g, '')
-      const customer = await sanityClient.fetch(CUSTOMER_BY_UID, { uid })
-      if (!customer) {
-        Alert.alert('Error', 'No account found with this email.')
-        return
-      }
-      await storeAuthData('demo_token', uid)
+      const { token, customer } = await api<{ token: string; customer: Customer }>('POST', '/api/v1/auth/login', { email, password })
+      await storeAuthToken(token)
       setCustomer(customer)
       router.replace('/(tabs)')
     } catch (err) {
-      Alert.alert('Error', 'Login failed. Please try again.')
+      Alert.alert('Sign in failed', errorMessage(err, 'Login failed. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -54,7 +47,7 @@ export default function LoginScreen() {
           <Text className="text-primary-400 text-base">← Back</Text>
         </TouchableOpacity>
 
-        <Text className="text-white text-3xl font-bold mb-2">Welcome back</Text>
+        <Text className="text-fg text-3xl font-bold mb-2">Welcome back</Text>
         <Text className="text-dark-400 text-base mb-10">Sign in to your Cutty account</Text>
 
         <View className="gap-5">
@@ -65,7 +58,7 @@ export default function LoginScreen() {
               <View>
                 <Text className="text-dark-300 text-sm mb-2">Email address</Text>
                 <TextInput
-                  className="bg-dark-800 text-white px-4 py-4 rounded-xl border border-dark-700"
+                  className="bg-dark-800 text-fg px-4 py-4 rounded-xl border border-dark-700"
                   placeholder="you@example.com"
                   placeholderTextColor="#686868"
                   keyboardType="email-address"
@@ -85,7 +78,7 @@ export default function LoginScreen() {
               <View>
                 <Text className="text-dark-300 text-sm mb-2">Password</Text>
                 <TextInput
-                  className="bg-dark-800 text-white px-4 py-4 rounded-xl border border-dark-700"
+                  className="bg-dark-800 text-fg px-4 py-4 rounded-xl border border-dark-700"
                   placeholder="••••••••"
                   placeholderTextColor="#686868"
                   secureTextEntry

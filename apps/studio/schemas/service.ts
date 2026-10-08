@@ -16,7 +16,7 @@ export const service = defineType({
       name: 'category',
       title: 'Category',
       type: 'string',
-      options: { list: ['haircut', 'shave', 'styling', 'treatment', 'combo'] },
+      options: { list: ['haircut', 'shave', 'styling', 'treatment', 'combo', 'braiding', 'wig'] },
     }),
   ],
   preview: {

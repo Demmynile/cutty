@@ -14,7 +14,7 @@ export const booking = defineType({
     }),
     defineField({
       name: 'barber',
-      title: 'Barber',
+      title: 'Stylist',
       type: 'reference',
       to: [{ type: 'barber' }],
       validation: (r) => r.required(),

@@ -4,10 +4,11 @@ import { LinearGradient } from 'expo-linear-gradient'
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { DARK_THEME_VARS } from '@/lib/theme'
 
 const FEATURES: { icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
   { icon: 'calendar', label: 'Book appointments in seconds' },
-  { icon: 'bag', label: 'Shop premium barbing products' },
+  { icon: 'bag', label: 'Shop premium hair & grooming products' },
   { icon: 'star', label: 'Earn loyalty points & rewards' },
   { icon: 'wallet', label: 'Wallet for seamless payments' },
 ]
@@ -16,7 +17,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets()
 
   return (
-    <View className="flex-1 bg-dark-900">
+    <View className="flex-1 bg-dark-900" style={DARK_THEME_VARS}>
       <LinearGradient colors={['#0d0d0d', '#161616', '#0d0d0d']} className="flex-1">
         <ScrollView
           contentContainerStyle={{
@@ -30,7 +31,7 @@ export default function OnboardingScreen() {
         >
           {/* Logo / Brand */}
           <View className="items-center">
-            <Animated.View entering={FadeIn.duration(700)} className="items-center justify-center" style={{ width: 100, height: 100 }}>
+            <Animated.View entering={FadeIn.duration(700)} style={{ width: 100, height: 100, alignItems: 'center', justifyContent: 'center' }}>
               {/* ambient glow */}
               <View
                 className="absolute bg-primary-400"
@@ -63,23 +64,23 @@ export default function OnboardingScreen() {
               </LinearGradient>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(200).duration(600)} className="items-center">
-              <Text className="text-white text-4xl mt-7" style={{ fontWeight: '200', letterSpacing: 10 }}>
+            <Animated.View entering={FadeInDown.delay(200).duration(600)} style={{ alignItems: 'center' }}>
+              <Text className="text-white text-4xl mt-8" style={{ fontWeight: '200', letterSpacing: 10 }}>
                 CUTTY
               </Text>
               <Text
-                className="text-primary-400 mt-2"
+                className="text-primary-400 mt-3"
                 style={{ fontSize: 11, fontWeight: '600', letterSpacing: 3 }}
               >
-                PREMIUM BARBERSHOP
+                PREMIUM BARBERSHOP & SALON
               </Text>
             </Animated.View>
           </View>
 
           {/* Features */}
-          <Animated.View entering={FadeInDown.delay(400).duration(600)} className="gap-4 mt-12">
+          <Animated.View entering={FadeInDown.delay(400).duration(600)} style={{ gap: 20, marginTop: 64 }}>
             {FEATURES.map(({ icon, label }) => (
-              <View key={label} className="flex-row items-center gap-4 bg-dark-800/60 border border-dark-700 rounded-2xl px-4 py-3.5">
+              <View key={label} className="flex-row items-center gap-4 bg-dark-800/60 border border-dark-700 rounded-2xl px-4 py-4">
                 <View
                   className="items-center justify-center bg-primary-500/10"
                   style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: '#7E290A' }}
@@ -92,7 +93,7 @@ export default function OnboardingScreen() {
           </Animated.View>
 
           {/* CTA Buttons */}
-          <Animated.View entering={FadeInUp.delay(550).duration(600)} className="gap-4 mt-12">
+          <Animated.View entering={FadeInUp.delay(550).duration(600)} style={{ gap: 20, marginTop: 64 }}>
             <TouchableOpacity
               activeOpacity={0.88}
               className="border border-primary-500 py-4 rounded-2xl items-center"

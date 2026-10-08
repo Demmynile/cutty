@@ -34,5 +34,15 @@ export const settings = defineType({
     }),
     defineField({ name: 'paystackPublicKey', title: 'Paystack Public Key', type: 'string' }),
     defineField({ name: 'currency', title: 'Currency', type: 'string', initialValue: 'NGN' }),
+    defineField({
+      name: 'exchangeRates',
+      title: 'Display Exchange Rates',
+      description: 'Naira per 1 unit of each currency. Used only to display prices to customers who pick USD/GBP — all payments are still charged in NGN.',
+      type: 'object',
+      fields: [
+        { name: 'USD', title: '₦ per $1', type: 'number', initialValue: 1550 },
+        { name: 'GBP', title: '₦ per £1', type: 'number', initialValue: 2050 },
+      ],
+    }),
   ],
 })
