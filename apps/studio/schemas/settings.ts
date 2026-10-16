@@ -44,5 +44,17 @@ export const settings = defineType({
         { name: 'GBP', title: '₦ per £1', type: 'number', initialValue: 2050 },
       ],
     }),
+    defineField({
+      name: 'marketplace',
+      title: 'Cutty Pro Marketplace',
+      type: 'object',
+      fields: [
+        { name: 'commissionPercent', title: 'Cutty commission on stylist sales (%)', type: 'number', initialValue: 10, validation: (r) => r.min(0).max(50) },
+        { name: 'bonusMaxPerAward', title: 'Max bonus points per award', type: 'number', initialValue: 200 },
+        { name: 'bonusMonthlyCap', title: 'Max bonus points a stylist can give per month', type: 'number', initialValue: 2000 },
+        { name: 'bookingPointsMaxPerVisit', title: 'Max points per booking a stylist completes', type: 'number', initialValue: 300, validation: (r) => r.min(0) },
+        { name: 'bookingPointsMonthlyCap', title: 'Max booking points per stylist per month', type: 'number', initialValue: 5000, validation: (r) => r.min(0) },
+      ],
+    }),
   ],
 })

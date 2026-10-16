@@ -65,19 +65,10 @@ export interface Barber {
   isAvailable: boolean
   workingHours?: { start: string; end: string }
   workingDays?: string[]
-}
-
-export interface Service {
-  _id: string
-  _type: 'service'
-  name: string
-  description?: string
-  image?: SanityImage
-  price: number
-  duration: number
-  pointsEarned: number
-  isActive: boolean
-  category?: string
+  /** Set when this bookable profile belongs to a Cutty Pro stylist. */
+  stylistId?: string
+  weeklyAvailability?: AvailabilityWindow[]
+  timeOff?: string[]
 }
 
 export interface Booking {
@@ -85,7 +76,8 @@ export interface Booking {
   _type: 'booking'
   customer: Customer
   barber: Barber
-  services: Service[]
+  /** Style the customer asked for, picked from the stylist's styles. */
+  style?: string
   bookingDate: string
   startTime: string
   endTime?: string
@@ -127,6 +119,8 @@ export interface Product {
   isFeatured: boolean
   isActive: boolean
   tags?: string[]
+  /** The stylist shop selling this product; absent for Cutty's own products. */
+  seller?: { _id: string; name: string } | null
 }
 
 export interface OrderItem {
@@ -161,6 +155,9 @@ export interface Order {
   shippingAddress?: ShippingAddress
   discountCode?: DiscountCode
   notes?: string
+  seller?: { _id: string; name: string } | null
+  paidAt?: string
+  sellerConfirmedAt?: string
   createdAt: string
 }
 
@@ -494,6 +491,11 @@ export const TRY_ON_STYLES: readonly AITryOnStyle[] = [
   },
 ]
 
+/** Display name for a stylist style: a try-on preset id maps to its label; custom names show as written. */
+export function styleLabel(style: string) {
+  return TRY_ON_STYLES.find((s) => s.id === style)?.label ?? style
+}
+
 export interface AITryOnRequest {
   image: AIImageInput
   styleId: string
@@ -522,3 +524,229 @@ export const LOYALTY_REWARDS: readonly LoyaltyReward[] = [
   { id: 'pct-10', points: 200, label: '10% off next booking', type: 'percentage', value: 10 },
   { id: 'fixed-3000', points: 500, label: '₦3,000 off any order', type: 'fixed', value: 300000 },
 ] as const
+
+// ─── Cutty Pro (stylist accounts) ─────────────────────────────────────────
+
+export type Weekday = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+export const WEEKDAYS: readonly Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+export interface AvailabilityWindow {
+  _key?: string
+  day: Weekday
+  /** HH:mm */
+  start: string
+  /** HH:mm */
+  end: string
+}
+
+export type StylistKind = 'barber' | 'braider' | 'both'
+export type StylistStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
+export type ShopStatus = 'none' | 'requested' | 'approved' | 'rejected' | 'suspended'
+
+export interface StylistShop {
+  status: ShopStatus
+  name?: string
+  description?: string
+  bankCode?: string
+  bankName?: string
+  /** Last 4 digits only — the full number never leaves the server. */
+  accountNumberLast4?: string
+  accountName?: string
+  commissionPercent?: number
+  reviewNote?: string
+}
+
+/** The signed-in stylist's own account (GET /api/v1/pro/me). */
+export interface StylistAccount {
+  _id: string
+  _type: 'stylist'
+  fullName: string
+  displayName?: string
+  email: string
+  phone?: string
+  kind: StylistKind
+  photo?: SanityImage
+  bio?: string
+  yearsExperience?: number
+  skills: string[]
+  styles: string[]
+  weeklyAvailability: AvailabilityWindow[]
+  timeOff: string[]
+  status: StylistStatus
+  reviewNote?: string
+  barberId?: string
+  shop: StylistShop
+  rating?: number
+  totalReviews?: number
+  awayAssistant: AwayAssistantSettings
+  location?: StylistLocation
+  /** What one appointment costs, in kobo. Customers can't book until it's set. */
+  bookingPrice?: number
+  /** Length of one appointment in minutes. */
+  bookingDuration?: number
+  createdAt: string
+}
+
+/** Where a stylist works, so customers can find the nearest chair on the map. */
+export interface StylistLocation {
+  lat: number
+  lng: number
+  /** Neighbourhood customers recognise, e.g. "Lekki Phase 1". */
+  area?: string
+  /** Street line, e.g. "12 Admiralty Way". */
+  address?: string
+  city?: string
+  /** State or county. */
+  state?: string
+  postcode?: string
+}
+
+/** Cutty AI answers customers for the stylist while they're offline (text only; it never books, cancels or changes anything). */
+export interface AwayAssistantSettings {
+  enabled: boolean
+  /** Extra facts the stylist wants it to know: location, deposit/cancellation policy, parking, FAQs. */
+  notes?: string
+}
+
+/** What customers see about a stylist (GET /api/v1/stylists/[id]). */
+export interface StylistPublic {
+  _id: string
+  name: string
+  kind: StylistKind
+  photo?: SanityImage
+  bio?: string
+  yearsExperience?: number
+  skills: string[]
+  styles: string[]
+  weeklyAvailability: AvailabilityWindow[]
+  rating?: number
+  totalReviews?: number
+  barberId?: string
+  hasShop: boolean
+  shopName?: string
+  location?: StylistLocation
+  /** Straight-line distance from the customer, when the request sent their position. */
+  distanceKm?: number
+  /** What one appointment costs, in kobo; absent until the stylist sets it. */
+  bookingPrice?: number
+  bookingDuration?: number
+  products?: Product[]
+}
+
+export interface StylistDashboard {
+  status: StylistStatus
+  shopStatus: ShopStatus
+  totals: {
+    customers: number
+    visits: number
+    productsSold: number
+    revenueBookings: number
+    revenueProducts: number
+    pendingSales: number
+    upcomingBookings: number
+    bonusPointsThisMonth: number
+    bonusMonthlyCap: number
+  }
+  upcoming: Array<Pick<Booking, '_id' | 'bookingDate' | 'startTime' | 'status' | 'totalAmount'> & { customerName: string; style?: string }>
+  pendingSales: StylistSale[]
+}
+
+export interface StylistCustomerStat {
+  customerId: string
+  name: string
+  avatar?: SanityImage
+  tier: LoyaltyTier
+  visits: number
+  productsPurchased: number
+  totalSpent: number
+  lastVisit?: string
+  bonusGiven: number
+}
+
+export interface StylistSale {
+  _id: string
+  orderNumber: string
+  status: OrderStatus
+  paymentMethod?: string
+  totalAmount: number
+  createdAt: string
+  customerName: string
+  items: Array<{ productName: string; quantity: number; priceAtOrder: number }>
+  shippingAddress?: ShippingAddress
+}
+
+export interface BankOption {
+  code: string
+  name: string
+}
+
+// ─── Customer ↔ stylist chat ──────────────────────────────────────────────
+
+export type ChatSenderType = 'customer' | 'stylist' | 'ai'
+
+export interface ChatMessageDoc {
+  _id: string
+  conversationId: string
+  senderType: ChatSenderType
+  senderId?: string
+  text: string
+  clientId?: string
+  createdAt: string
+}
+
+export interface ConversationSummary {
+  _id: string
+  customer: { _id: string; name: string; avatar?: SanityImage }
+  stylist: { _id: string; name: string; photo?: SanityImage }
+  lastMessageAt?: string
+  lastMessagePreview?: string
+  unread: number
+}
+
+/** Socket.IO events shared by apps/realtime and the mobile app. */
+export interface ServerToClientEvents {
+  'message:new': (message: ChatMessageDoc) => void
+  'conversation:read': (payload: { conversationId: string; by: 'customer' | 'stylist' }) => void
+  'typing': (payload: { conversationId: string; by: 'customer' | 'stylist' }) => void
+}
+
+export interface ClientToServerEvents {
+  'conversation:join': (conversationId: string, ack: (res: { ok: boolean; error?: string }) => void) => void
+  'conversation:leave': (conversationId: string) => void
+  'message:send': (
+    payload: { conversationId: string; text: string; clientId: string },
+    ack: (res: { ok: true; message: ChatMessageDoc } | { ok: false; error: string }) => void,
+  ) => void
+  'conversation:read': (conversationId: string) => void
+  'typing': (conversationId: string) => void
+}
+
+// ─── AI search & recommendations ──────────────────────────────────────────
+
+export interface AISearchStylistPick {
+  stylist: Pick<StylistPublic, '_id' | 'name' | 'kind' | 'photo' | 'rating' | 'skills'>
+  reason: string
+}
+
+export interface AISearchProductPick {
+  product: Pick<Product, '_id' | 'name' | 'slug' | 'images' | 'price' | 'stock'>
+  reason: string
+}
+
+export interface AISearchResult {
+  _id?: string
+  query: string
+  summary: string
+  stylists: AISearchStylistPick[]
+  products: AISearchProductPick[]
+  /** Try-on preset ids */
+  styles: string[]
+  createdAt?: string
+}
+
+// Features switched off for this release. The code stays in place; flip a flag
+// to true to bring the feature back (the shop is planned for v2.0).
+export const FEATURES = {
+  /** Product shop: customer shop/cart/checkout/orders, stylist shops, admin Products & Orders. */
+  shop: false,
+} as const

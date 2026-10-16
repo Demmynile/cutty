@@ -4,9 +4,10 @@ import { useOnboardingStore } from '@/store/onboardingStore'
 import { COLORS } from '@/constants'
 import { useTheme } from '@/lib/theme'
 import { Ionicons } from '@expo/vector-icons'
+import { FEATURES } from '@/lib/features'
 
 export default function TabsLayout() {
-  const { isAuthenticated, isLoading } = useAuthStore()
+  const { isAuthenticated, isLoading, role } = useAuthStore()
   const { hydrated, completedThisSession } = useOnboardingStore()
   const { colors } = useTheme()
 
@@ -17,6 +18,10 @@ export default function TabsLayout() {
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)" />
+  }
+
+  if (role === 'stylist') {
+    return <Redirect href="/(pro)" />
   }
 
   return (
@@ -53,6 +58,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="shop"
         options={{
+          href: FEATURES.shop ? undefined : null, // hidden until the shop launches (v2.0)
           title: 'Shop',
           tabBarIcon: ({ color, size }) => <Ionicons name="bag" size={size} color={color} />,
         }}

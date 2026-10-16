@@ -33,7 +33,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'How do I book an appointment?',
     answer:
-      'Go to the Home or Bookings tab and tap "Book an Appointment". Choose a service, pick your preferred barber, select a date and time, then confirm.',
+      'Go to the Home or Bookings tab and tap "Book an Appointment". Pick a stylist on the map or search by name, area or style, choose the style you want, select a date and time, then confirm.',
   },
   {
     question: 'Can I cancel or reschedule a booking?',

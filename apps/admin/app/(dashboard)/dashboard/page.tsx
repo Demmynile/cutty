@@ -1,15 +1,16 @@
 import { sanityClient, formatPrice } from '@/lib/sanity'
+import { requireAdmin } from '@/lib/server/adminAuth'
 import { StatCard } from '@/components/ui/StatCard'
 import { Badge, bookingStatusColor, orderStatusColor } from '@/components/ui/Badge'
-import type { Booking, Order } from '@cutty/types'
+import { FEATURES, type Booking, type Order } from '@cutty/types'
 
 async function getDashboardData() {
   const [bookings, orders, customers, revenue] = await Promise.all([
-    sanityClient.fetch(`*[_type == "booking"] | order(_createdAt desc)[0..49]{
+    sanityClient.fetch(`*[_type == "booking"] | order(_createdAt desc)[0...8]{
       _id, bookingDate, startTime, status, totalAmount,
       customer->{ fullName }, barber->{ name }
     }`),
-    sanityClient.fetch(`*[_type == "order"] | order(createdAt desc)[0..49]{
+    sanityClient.fetch(`*[_type == "order"] | order(createdAt desc)[0...8]{
       _id, orderNumber, status, totalAmount, createdAt,
       customer->{ fullName }
     }`),
@@ -18,22 +19,24 @@ async function getDashboardData() {
       "totalRevenue": math::sum(*[_type == "order" && status in ["paid","processing","shipped","delivered"]].totalAmount),
       "bookingRevenue": math::sum(*[_type == "booking" && status == "completed"].totalAmount),
       "pendingBookings": count(*[_type == "booking" && status == "pending"]),
-      "todayBookings": count(*[_type == "booking" && bookingDate == $today])
+      "todayBookings": count(*[_type == "booking" && bookingDate == $today]),
+      "orderCount": count(*[_type == "order"])
     }`, { today: new Date().toISOString().split('T')[0] }),
   ])
   return { bookings, orders, customers, revenue }
 }
 
 export default async function DashboardPage() {
+  await requireAdmin() // re-checks the admin in the database on every request
   const { bookings, orders, customers, revenue } = await getDashboardData()
 
   const stats = [
-    { title: 'Total Revenue', value: formatPrice(revenue.totalRevenue || 0), icon: '💰', color: 'primary' as const, sub: 'Orders + Bookings' },
+    { title: 'Total Revenue', value: formatPrice(revenue.totalRevenue || 0), icon: '💰', color: 'primary' as const, sub: FEATURES.shop ? 'Orders + Bookings' : 'Bookings' },
     { title: 'Booking Revenue', value: formatPrice(revenue.bookingRevenue || 0), icon: '✂', color: 'purple' as const },
     { title: 'Total Customers', value: customers, icon: '👥', color: 'blue' as const },
     { title: 'Pending Bookings', value: revenue.pendingBookings || 0, icon: '📅', color: 'yellow' as const },
     { title: "Today's Bookings", value: revenue.todayBookings || 0, icon: '📋', color: 'green' as const },
-    { title: 'Total Orders', value: orders.length, icon: '📦', color: 'blue' as const },
+    ...(FEATURES.shop ? [{ title: 'Total Orders', value: revenue.orderCount || 0, icon: '📦', color: 'blue' as const }] : []),
   ]
 
   return (
@@ -48,7 +51,7 @@ export default async function DashboardPage() {
         {stats.map((s) => <StatCard key={s.title} {...s} />)}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${FEATURES.shop ? 'lg:grid-cols-2' : ''}`}>
         {/* Recent Bookings */}
         <div className="bg-gray-900 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-5">
@@ -56,7 +59,7 @@ export default async function DashboardPage() {
             <a href="/bookings" className="text-primary-400 text-sm hover:underline">View all →</a>
           </div>
           <div className="space-y-3">
-            {(bookings as Booking[]).slice(0, 8).map((b) => (
+            {(bookings as Booking[]).map((b) => (
               <div key={b._id} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
                 <div>
                   <p className="text-white text-sm font-medium">{(b as any).customer?.fullName}</p>
@@ -72,13 +75,13 @@ export default async function DashboardPage() {
         </div>
 
         {/* Recent Orders */}
-        <div className="bg-gray-900 rounded-2xl p-6">
+        {FEATURES.shop && <div className="bg-gray-900 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-white font-bold text-lg">Recent Orders</h2>
             <a href="/orders" className="text-primary-400 text-sm hover:underline">View all →</a>
           </div>
           <div className="space-y-3">
-            {(orders as Order[]).slice(0, 8).map((o) => (
+            {(orders as Order[]).map((o) => (
               <div key={o._id} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
                 <div>
                   <p className="text-white text-sm font-medium">#{o.orderNumber}</p>
@@ -91,7 +94,7 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   )

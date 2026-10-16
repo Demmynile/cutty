@@ -24,7 +24,7 @@ config.resolver.extraNodeModules = {
 // crashes like "Cannot read property 'useRef' of null". extraNodeModules
 // only applies when normal resolution fails, and normal resolution finds
 // the nested copies just fine, so force these to a single path unconditionally.
-const SINGLETON_MODULES = ['react', 'react-native', 'react-native-reanimated', 'react-native-worklets']
+const SINGLETON_MODULES = ['react', 'react-dom', 'react-native', 'react-native-reanimated', 'react-native-worklets']
 const { resolveRequest: defaultResolveRequest } = config.resolver
 config.resolver.resolveRequest = (context, moduleName, platform) => {
 	const isSingleton = SINGLETON_MODULES.some((name) => moduleName === name || moduleName.startsWith(`${name}/`))

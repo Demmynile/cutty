@@ -4,7 +4,13 @@ import type { CartItem, DiscountCode, Product } from '@cutty/types'
 interface CartState {
   items: CartItem[]
   discountCode: DiscountCode | null
-  addItem: (product: Product, quantity?: number) => void
+  /** Returns 'conflict' (and adds nothing) when the cart holds another shop's items. */
+  addItem: (product: Product, quantity?: number) => 'added' | 'conflict'
+  /** Empties the cart and adds this product (used after the customer confirms switching shops). */
+  replaceWith: (product: Product, quantity?: number) => void
+  /** null = Cutty's own shop. */
+  sellerId: () => string | null
+  sellerName: () => string
   removeItem: (productId: string) => void
   updateQuantity: (productId: string, quantity: number) => void
   clearCart: () => void
@@ -20,8 +26,11 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   discountCode: null,
 
+  // One order = one seller (payments split to a single stylist's account), so
+  // the cart only ever holds products from one shop.
   addItem: (product, quantity = 1) => {
     const items = get().items
+    if (items.length && (items[0].product.seller?._id ?? null) !== (product.seller?._id ?? null)) return 'conflict'
     const existing = items.find((i) => i.product._id === product._id)
     if (existing) {
       set({
@@ -34,7 +43,14 @@ export const useCartStore = create<CartState>((set, get) => ({
     } else {
       set({ items: [...items, { product, quantity }] })
     }
+    return 'added'
   },
+
+  replaceWith: (product, quantity = 1) => set({ items: [{ product, quantity }], discountCode: null }),
+
+  sellerId: () => get().items[0]?.product.seller?._id ?? null,
+
+  sellerName: () => get().items[0]?.product.seller?.name ?? 'Cutty',
 
   removeItem: (productId) =>
     set({ items: get().items.filter((i) => i.product._id !== productId) }),

@@ -4,6 +4,13 @@ import { Ionicons } from '@expo/vector-icons'
 
 const FEATURES = [
   {
+    key: 'search',
+    title: 'Find a Stylist',
+    description: 'Describe what you want in your own words — get matched stylists, styles and products.',
+    icon: 'search' as const,
+    href: '/ai/search' as const,
+  },
+  {
     key: 'styling',
     title: 'Styling Assistant',
     description: 'Chat about what haircut or style would suit you — attach a photo any time.',

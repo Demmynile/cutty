@@ -1,4 +1,5 @@
 import { sanityClient, formatPrice } from '@/lib/sanity'
+import { requireAdmin } from '@/lib/server/adminAuth'
 import type { Product } from '@cutty/types'
 
 async function getProducts() {
@@ -9,6 +10,7 @@ async function getProducts() {
 }
 
 export default async function ProductsPage() {
+  await requireAdmin() // re-checks the admin in the database on every request
   const products: Product[] = await getProducts()
   const activeCount = products.filter((p) => p.isActive).length
   const lowStock = products.filter((p) => p.stock <= 5 && p.stock > 0).length

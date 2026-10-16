@@ -222,10 +222,10 @@ export default function TryOnScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     className="flex-1 py-3 rounded-xl items-center bg-primary-500 flex-row justify-center gap-2"
-                    onPress={() => router.push('/booking/new')}
+                    onPress={() => router.push(`/booking/new?style=${activeStyle.id}`)}
                   >
                     <Ionicons name="calendar-outline" size={18} color="white" />
-                    <Text className="text-white font-semibold text-sm capitalize">Book {activeStyle.serviceCategory}</Text>
+                    <Text className="text-white font-semibold text-sm">Book this style</Text>
                   </TouchableOpacity>
                 </View>
                 <Text className="text-dark-400 text-xs text-center px-4">

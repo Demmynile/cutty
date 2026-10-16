@@ -1,44 +1,96 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { Image } from 'expo-image'
-import { useEffect } from 'react'
-import { urlFor } from '@/lib/sanity'
 import { api, errorMessage } from '@/lib/api'
-import { TRY_ON_STYLES } from '@cutty/types'
-import type { Service, Barber, DiscountCode } from '@cutty/types'
+import { keys, queryClient, useAvailability, useNearbyStylists, useStylist, useStylists } from '@/lib/data'
+import { TRY_ON_STYLES, styleLabel } from '@cutty/types'
+import type { DiscountCode, StylistPublic } from '@cutty/types'
 import { useBookingStore } from '@/store/bookingStore'
 import { useAuthStore } from '@/store/authStore'
 import { getStyleImage } from '@/lib/styleImages'
+import { formatDistance, useMyLocation } from '@/lib/location'
+import { StylistAvatar } from '@/components/StylistAvatar'
 import { Ionicons } from '@expo/vector-icons'
 import { useFormatPrice, usePreferredCurrency } from '@/lib/currency'
 
-const STEPS = ['Service', 'Stylist', 'Date & Time', 'Confirm']
-const TIMES = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30']
+const STEPS = ['Stylist', 'Style', 'Date & Time', 'Confirm']
+const KIND_LABEL = { barber: 'Barber', braider: 'Braider', both: 'Barber & braider' } as const
 
+/** Only stylists with a calendar and an appointment price can be booked. */
+const bookable = (s: StylistPublic) => !!s.barberId && s.bookingPrice != null
+
+// Customers book a stylist, not a service: pick one on the map or from the
+// nearby/search list (or arrive from their profile with `stylistId`), choose
+// one of their styles, then a free time. `style` (a try-on preset id) is
+// preselected when the chosen stylist offers it.
 export default function NewBookingScreen() {
   const formatPrice = useFormatPrice()
   const currency = usePreferredCurrency()
-  const [step, setStep] = useState(0)
-  const [services, setServices] = useState<Service[]>([])
-  const [barbers, setBarbers] = useState<Barber[]>([])
-  const [loading, setLoading] = useState(true)
+  const params = useLocalSearchParams<{ stylistId?: string; style?: string }>()
+  const [step, setStep] = useState(params.stylistId ? 1 : 0)
+  const [stylistId, setStylistId] = useState(params.stylistId)
+  const [query, setQuery] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [discountInput, setDiscountInput] = useState('')
   const [validatingCode, setValidatingCode] = useState(false)
-  const [styleGender, setStyleGender] = useState<'male' | 'female'>('male')
-  const { draft, addService, removeService, setBarber, setDate, setTime, setNotes, setDiscountCode, resetDraft, totalAmount, totalDuration, totalPoints, discount, finalAmount } = useBookingStore()
+  const { draft, setStylist, setStyle, setDate, setTime, setNotes, setDiscountCode, resetDraft, totalAmount, totalDuration, totalPoints, discount, finalAmount } = useBookingStore()
   const { customer } = useAuthStore()
 
+  // The list: nearest first when we have the customer's position.
+  const { position } = useMyLocation()
+  const nearbyQ = useNearbyStylists(position)
+  const allQ = useStylists()
+  const stylistQ = useStylist(stylistId)
+  const stylist = stylistQ.data ?? null
+
+  const candidates = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = (nearbyQ.data ?? allQ.data ?? []).filter(bookable).filter((s) =>
+      !q ||
+      s.name.toLowerCase().includes(q) ||
+      [s.location?.area, s.location?.city, s.location?.postcode].some((t) => t?.toLowerCase().includes(q)) ||
+      s.skills.some((k) => k.toLowerCase().includes(q)) ||
+      s.styles.some((st) => styleLabel(st).toLowerCase().includes(q)),
+    )
+    // Coming from a try-on: stylists who do that look go first.
+    return params.style ? [...list].sort((a, b) => Number(b.styles.includes(params.style!)) - Number(a.styles.includes(params.style!))) : list
+  }, [nearbyQ.data, allQ.data, query, params.style])
+  const loadingList = !nearbyQ.data && !allQ.data && (allQ.isLoading || nearbyQ.isLoading)
+
+  useEffect(() => { resetDraft() }, [])
   useEffect(() => {
-    Promise.all([
-      api<Service[]>('GET', '/api/v1/catalog/services'),
-      api<Barber[]>('GET', '/api/v1/catalog/barbers'),
-    ]).then(([svcs, brbs]) => {
-      setServices(svcs)
-      setBarbers(brbs)
-    }).finally(() => setLoading(false))
-  }, [])
+    if (!stylist) return
+    setStylist(stylist)
+    if (params.style && stylist.styles.includes(params.style)) setStyle(params.style)
+  }, [stylist])
+  useEffect(() => {
+    if (stylistQ.error) {
+      Alert.alert('Unavailable', errorMessage(stylistQ.error, 'This stylist is not taking bookings right now.'))
+      setStylistId(undefined)
+      setStep(0)
+    }
+  }, [stylistQ.error])
+  useEffect(() => {
+    if (stylist && !bookable(stylist)) {
+      Alert.alert('Not taking bookings yet', `${stylist.name} hasn't set an appointment price yet. You can message them from their profile.`)
+      setStylistId(undefined)
+      setStep(0)
+    }
+  }, [stylist])
+
+  function chooseStylist(s: StylistPublic) {
+    setStylistId(s._id)
+    setStylist(s)
+    if (params.style && s.styles.includes(params.style)) setStyle(params.style)
+    setStep(1)
+  }
+
+  // Free times come from the server: the stylist's hours minus existing bookings.
+  const barberId = draft.stylist?.barberId
+  const slotsQ = useAvailability(barberId, draft.date, totalDuration())
+  const slots = barberId && draft.date ? (slotsQ.isError ? [] : slotsQ.data ?? null) : null
+  const loadingSlots = slotsQ.isLoading
 
   async function applyDiscountCode() {
     if (!discountInput.trim()) return
@@ -57,20 +109,22 @@ export default function NewBookingScreen() {
   }
 
   async function confirmBooking() {
-    if (!customer || !draft.barber || !draft.date || !draft.time || draft.services.length === 0) return
+    if (!customer || !barberId || !draft.date || !draft.time) return
     setSubmitting(true)
     try {
       // Price, discount and points are recomputed by the server from the
-      // service records; points are credited once the visit is completed.
+      // stylist's appointment price; points are credited once the visit is completed.
       const booking = await api<{ _id: string }>('POST', '/api/v1/bookings', {
-        serviceIds: draft.services.map((s) => s._id),
-        barberId: draft.barber._id,
+        barberId,
+        style: draft.style ?? undefined,
         date: draft.date,
         time: draft.time,
         notes: draft.notes || undefined,
         discountCode: draft.discountCode?.code,
       })
       resetDraft()
+      queryClient.invalidateQueries({ queryKey: keys.bookings })
+      queryClient.invalidateQueries({ queryKey: ['availability'] })
       Alert.alert('Booking Confirmed! ✅', `Your appointment is scheduled for ${draft.date} at ${draft.time}.`, [
         { text: 'View Booking', onPress: () => router.replace(`/booking/${booking._id}`) },
       ])
@@ -81,16 +135,17 @@ export default function NewBookingScreen() {
     }
   }
 
-  if (loading) {
-    return <View className="flex-1 bg-dark-900 items-center justify-center"><ActivityIndicator color="#D4891A" size="large" /></View>
-  }
+  const chosen = draft.stylist
+  const canContinue = step === 1 ? true : step === 2 ? !!draft.date && !!draft.time : false
+  const styles = chosen?.styles ?? []
+  const section = chosen?.kind === 'braider' ? 'female' : 'male'
 
   return (
     <View className="flex-1 bg-dark-900">
       {/* Header */}
       <View className="px-5 pt-14 pb-4 bg-dark-800">
         <View className="flex-row items-center gap-4 mb-4">
-          <TouchableOpacity onPress={() => step === 0 ? router.back() : setStep(step - 1)}>
+          <TouchableOpacity onPress={() => step === 0 ? router.back() : setStep(step - 1)} accessibilityLabel="Back">
             <Ionicons name="arrow-back" size={24} className="text-fg" />
           </TouchableOpacity>
           <Text className="text-fg text-xl font-bold">Book Appointment</Text>
@@ -106,115 +161,121 @@ export default function NewBookingScreen() {
         </View>
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 20 }}>
-        {/* Step 0: Select Services */}
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+        {/* Step 0: Choose a stylist on the map or from search */}
         {step === 0 && (
           <View className="gap-3">
-            {/* Style inspiration gallery */}
-            <View className="mb-2">
-              <View className="bg-primary-500/10 border border-primary-500/30 rounded-2xl p-4 flex-row items-center gap-3 mb-4">
-                <Ionicons name="sparkles" size={20} color="#F1A91F" />
-                <Text className="text-dark-100 text-sm flex-1">
-                  Not sure what to book? Browse styles below, then head to the AI tab to try any of them on your own photo first.
-                </Text>
+            <TouchableOpacity
+              className="bg-primary-500/10 border border-primary-500/40 rounded-2xl p-4 flex-row items-center gap-3"
+              onPress={() => router.replace('/explore')}
+              accessibilityRole="button"
+            >
+              <View className="w-10 h-10 bg-primary-500/20 rounded-xl items-center justify-center">
+                <Ionicons name="map" size={20} color="#D4891A" />
               </View>
-
-              <Text className="text-fg font-bold text-base mb-3">Style Inspiration</Text>
-
-              <View className="flex-row bg-dark-800 rounded-full p-1 mb-4 self-start">
-                {(['male', 'female'] as const).map((g) => (
-                  <TouchableOpacity
-                    key={g}
-                    onPress={() => setStyleGender(g)}
-                    className={`px-5 py-2 rounded-full ${styleGender === g ? 'bg-primary-500' : ''}`}
-                  >
-                    <Text className={`text-sm font-semibold ${styleGender === g ? 'text-white' : 'text-dark-400'}`}>
-                      {g === 'male' ? 'Men' : 'Women'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <View className="flex-1">
+                <Text className="text-fg font-semibold">Pick on the map</Text>
+                <Text className="text-dark-400 text-xs mt-0.5">See stylists around you, nearest first</Text>
               </View>
+              <Ionicons name="chevron-forward" size={18} color="#686868" />
+            </TouchableOpacity>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 4 }}>
-                {TRY_ON_STYLES.filter((s) => s.gender === styleGender || s.gender === 'unisex').map((s) => (
-                  <View key={s.id} className="bg-dark-800 rounded-2xl overflow-hidden border border-dark-700" style={{ width: 140 }}>
-                    <Image source={getStyleImage(s.id, styleGender)} style={{ width: '100%', height: 160 }} contentFit="cover" />
-                    <View className="p-3 gap-1">
-                      <Text className="text-fg font-semibold text-sm" numberOfLines={1}>{s.label}</Text>
-                      <Text className="text-dark-400 text-xs" numberOfLines={2}>{s.blurb}</Text>
-                      <TouchableOpacity
-                        className="mt-2 bg-primary-500/15 border border-primary-500/40 rounded-full py-1.5 items-center flex-row justify-center gap-1"
-                        onPress={() => router.push(`/ai/tryon?styleId=${s.id}`)}
-                      >
-                        <Ionicons name="color-wand-outline" size={12} color="#F1A91F" />
-                        <Text className="text-primary-400 text-xs font-semibold">Try it on</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
+            <View className="bg-dark-800 flex-row items-center px-4 py-3 rounded-xl gap-3 border border-dark-700">
+              <Ionicons name="search" size={18} color="#686868" />
+              <TextInput
+                className="flex-1 text-fg text-sm"
+                placeholder="Search name, area or style (e.g. locs)"
+                placeholderTextColor="#686868"
+                value={query}
+                onChangeText={setQuery}
+              />
             </View>
 
-            <View className="h-px bg-dark-700 mb-2" />
-
-            <Text className="text-dark-300 text-sm mb-2">Select one or more services</Text>
-            {services.map((service) => {
-              const selected = draft.services.some((s) => s._id === service._id)
-              return (
-                <TouchableOpacity
-                  key={service._id}
-                  className={`bg-dark-800 rounded-2xl p-4 flex-row items-center gap-4 border ${selected ? 'border-primary-500' : 'border-dark-700'}`}
-                  onPress={() => selected ? removeService(service._id) : addService(service)}
-                >
-                  {service.image && (
-                    <Image source={{ uri: urlFor(service.image).width(100).url() }} className="w-16 h-16 rounded-xl" contentFit="cover" />
-                  )}
-                  <View className="flex-1">
-                    <Text className="text-fg font-semibold">{service.name}</Text>
-                    <Text className="text-dark-400 text-sm">{service.duration} min</Text>
-                    <Text className="text-primary-400 font-bold">{formatPrice(service.price)}</Text>
-                  </View>
-                  <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selected ? 'bg-primary-500 border-primary-500' : 'border-dark-500'}`}>
-                    {selected && <Ionicons name="checkmark" size={14} color="white" />}
-                  </View>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-        )}
-
-        {/* Step 1: Select Barber */}
-        {step === 1 && (
-          <View className="gap-3">
-            <Text className="text-dark-300 text-sm mb-2">Choose your barber</Text>
-            {barbers.map((barber) => (
+            <Text className="text-dark-300 text-sm mt-1">{position ? 'Stylists near you' : 'Stylists'}</Text>
+            {loadingList && <ActivityIndicator color="#D4891A" />}
+            {!loadingList && candidates.length === 0 && (
+              <Text className="text-dark-400 text-sm">No bookable stylists match. Try another search or look on the map.</Text>
+            )}
+            {candidates.map((s) => (
               <TouchableOpacity
-                key={barber._id}
-                className={`bg-dark-800 rounded-2xl p-4 flex-row items-center gap-4 border ${draft.barber?._id === barber._id ? 'border-primary-500' : 'border-dark-700'}`}
-                onPress={() => setBarber(barber)}
+                key={s._id}
+                className="bg-dark-800 rounded-2xl p-4 flex-row items-center gap-4 border border-dark-700"
+                onPress={() => chooseStylist(s)}
+                accessibilityRole="button"
               >
-                <View className="w-14 h-14 rounded-full bg-dark-700 overflow-hidden items-center justify-center">
-                  {barber.photo ? (
-                    <Image source={{ uri: urlFor(barber.photo).width(112).url() }} style={{ width: 56, height: 56 }} contentFit="cover" />
-                  ) : (
-                    <Text className="text-primary-400 text-xl font-bold">{barber.name.charAt(0)}</Text>
+                <StylistAvatar s={s} />
+                <View className="flex-1">
+                  <Text className="text-fg font-semibold">{s.name}</Text>
+                  <Text className="text-dark-400 text-xs mt-0.5" numberOfLines={1}>
+                    {KIND_LABEL[s.kind]}{s.rating ? ` · ★ ${s.rating.toFixed(1)}` : ' · New'}{s.location?.area ? ` · ${s.location.area}` : ''}
+                  </Text>
+                  <Text className="text-primary-400 text-sm font-bold mt-1">
+                    {formatPrice(s.bookingPrice!)} <Text className="text-dark-400 text-xs font-normal">· {s.bookingDuration ?? 60} min</Text>
+                  </Text>
+                  {params.style && s.styles.includes(params.style) && (
+                    <Text className="text-green-400 text-xs mt-1">Does {styleLabel(params.style)}</Text>
                   )}
                 </View>
-                <View className="flex-1">
-                  <Text className="text-fg font-semibold">{barber.name}</Text>
-                  <View className="flex-row items-center gap-1 mt-1">
-                    <Ionicons name="star" size={12} color="#F59E0B" />
-                    <Text className="text-yellow-400 text-sm">{barber.rating?.toFixed(1)}</Text>
-                    <Text className="text-dark-400 text-xs">({barber.totalReviews} reviews)</Text>
-                  </View>
-                  {barber.specialties && <Text className="text-dark-400 text-xs mt-1">{barber.specialties.join(', ')}</Text>}
-                </View>
-                <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${draft.barber?._id === barber._id ? 'bg-primary-500 border-primary-500' : 'border-dark-500'}`}>
-                  {draft.barber?._id === barber._id && <Ionicons name="checkmark" size={14} color="white" />}
-                </View>
+                {s.distanceKm !== undefined && <Text className="text-dark-300 text-xs">{formatDistance(s.distanceKm)}</Text>}
               </TouchableOpacity>
             ))}
           </View>
+        )}
+
+        {/* Step 1: Pick one of the stylist's styles (optional) */}
+        {step === 1 && (
+          !chosen ? <ActivityIndicator color="#D4891A" size="large" /> : (
+            <View className="gap-3">
+              <View className="bg-dark-800 rounded-2xl p-4 flex-row items-center gap-4">
+                <StylistAvatar s={chosen} />
+                <View className="flex-1">
+                  <Text className="text-fg font-semibold">{chosen.name}</Text>
+                  <Text className="text-primary-400 font-bold mt-0.5">{formatPrice(totalAmount())} <Text className="text-dark-400 text-xs font-normal">· {totalDuration()} min</Text></Text>
+                </View>
+                <TouchableOpacity onPress={() => setStep(0)}><Text className="text-primary-400 text-sm font-semibold">Change</Text></TouchableOpacity>
+              </View>
+
+              <Text className="text-dark-300 text-sm mt-2">What would you like? (optional)</Text>
+              <TouchableOpacity
+                className={`bg-dark-800 rounded-2xl p-4 flex-row items-center gap-3 border ${draft.style === null ? 'border-primary-500' : 'border-dark-700'}`}
+                onPress={() => setStyle(null)}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color="#F1A91F" />
+                <Text className="text-fg flex-1">Not sure yet, I'll decide with {chosen.name.split(' ')[0]}</Text>
+                {draft.style === null && <Ionicons name="checkmark-circle" size={20} color="#D4891A" />}
+              </TouchableOpacity>
+              <View className="flex-row flex-wrap justify-between gap-y-3">
+                {styles.map((st) => {
+                  const preset = TRY_ON_STYLES.find((t) => t.id === st)
+                  const img = preset ? getStyleImage(preset.id, preset.gender === 'female' ? 'female' : preset.gender === 'male' ? 'male' : section) : null
+                  const selected = draft.style === st
+                  return (
+                    <View
+                      key={st}
+                      className={`bg-dark-800 rounded-2xl overflow-hidden border ${selected ? 'border-primary-500' : 'border-dark-700'}`}
+                      style={{ width: '48%' }}
+                    >
+                      <TouchableOpacity onPress={() => setStyle(st)} accessibilityState={{ selected }}>
+                        {img ? <Image source={img} style={{ width: '100%', height: 120 }} contentFit="cover" /> : (
+                          <View className="h-16 bg-dark-700 items-center justify-center"><Ionicons name="cut-outline" size={22} color="#686868" /></View>
+                        )}
+                        <View className="p-3 flex-row items-center gap-2">
+                          <Text className="text-fg font-semibold text-sm flex-1" numberOfLines={1}>{styleLabel(st)}</Text>
+                          {selected && <Ionicons name="checkmark-circle" size={18} color="#D4891A" />}
+                        </View>
+                      </TouchableOpacity>
+                      {preset && (
+                        <TouchableOpacity onPress={() => router.push(`/ai/tryon?styleId=${preset.id}`)} className="px-3 pb-3 flex-row items-center gap-1">
+                          <Ionicons name="color-wand-outline" size={12} color="#F1A91F" />
+                          <Text className="text-primary-400 text-xs font-semibold">Try it on</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )
+                })}
+              </View>
+            </View>
+          )
         )}
 
         {/* Step 2: Date & Time */}
@@ -247,8 +308,13 @@ export default function NewBookingScreen() {
             </View>
             <View>
               <Text className="text-dark-300 text-sm mb-3">Select Time</Text>
+              {!draft.date && <Text className="text-dark-400 text-sm">Pick a date to see free times.</Text>}
+              {loadingSlots && <ActivityIndicator color="#D4891A" />}
+              {!loadingSlots && slots?.length === 0 && (
+                <Text className="text-dark-400 text-sm">No free times on this day. Try another date.</Text>
+              )}
               <View className="flex-row flex-wrap gap-3">
-                {TIMES.map((time) => (
+                {!loadingSlots && (slots ?? []).map((time) => (
                   <TouchableOpacity
                     key={time}
                     className={`px-4 py-3 rounded-xl border ${draft.time === time ? 'bg-primary-500 border-primary-500' : 'bg-dark-800 border-dark-700'}`}
@@ -281,12 +347,12 @@ export default function NewBookingScreen() {
               <Text className="text-fg font-bold text-lg">Booking Summary</Text>
               <View className="gap-2">
                 <View className="flex-row justify-between">
-                  <Text className="text-dark-400">Services</Text>
-                  <Text className="text-fg">{draft.services.map((s) => s.name).join(', ')}</Text>
+                  <Text className="text-dark-400">Stylist</Text>
+                  <Text className="text-fg">{chosen?.name}</Text>
                 </View>
                 <View className="flex-row justify-between">
-                  <Text className="text-dark-400">Barber</Text>
-                  <Text className="text-fg">{draft.barber?.name}</Text>
+                  <Text className="text-dark-400">Style</Text>
+                  <Text className="text-fg">{draft.style ? styleLabel(draft.style) : 'Decide with stylist'}</Text>
                 </View>
                 <View className="flex-row justify-between">
                   <Text className="text-dark-400">Date & Time</Text>
@@ -299,7 +365,7 @@ export default function NewBookingScreen() {
               </View>
               <View className="border-t border-dark-700 pt-4 gap-2">
                 <View className="flex-row justify-between">
-                  <Text className="text-dark-400">Subtotal</Text>
+                  <Text className="text-dark-400">Appointment</Text>
                   <Text className="text-fg">{formatPrice(totalAmount())}</Text>
                 </View>
                 {discount() > 0 && (
@@ -355,36 +421,28 @@ export default function NewBookingScreen() {
         )}
       </ScrollView>
 
-      {/* Bottom CTA */}
-      <View className="px-5 py-4 bg-dark-800 border-t border-dark-700">
-        {step === 3 ? (
-          <TouchableOpacity
-            className="bg-primary-500 py-4 rounded-2xl items-center"
-            onPress={confirmBooking}
-            disabled={submitting}
-          >
-            {submitting ? <ActivityIndicator color="white" /> : <Text className="text-white text-lg font-bold">Confirm Booking — {formatPrice(finalAmount())}</Text>}
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            className={`py-4 rounded-2xl items-center ${
-              (step === 0 && draft.services.length === 0) ||
-              (step === 1 && !draft.barber) ||
-              (step === 2 && (!draft.date || !draft.time))
-                ? 'bg-dark-600'
-                : 'bg-primary-500'
-            }`}
-            onPress={() => setStep(step + 1)}
-            disabled={
-              (step === 0 && draft.services.length === 0) ||
-              (step === 1 && !draft.barber) ||
-              (step === 2 && (!draft.date || !draft.time))
-            }
-          >
-            <Text className="text-white text-lg font-bold">Continue</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Bottom CTA (the stylist step advances by tapping a stylist) */}
+      {step > 0 && (
+        <View className="px-5 py-4 bg-dark-800 border-t border-dark-700">
+          {step === 3 ? (
+            <TouchableOpacity
+              className="bg-primary-500 py-4 rounded-2xl items-center"
+              onPress={confirmBooking}
+              disabled={submitting}
+            >
+              {submitting ? <ActivityIndicator color="white" /> : <Text className="text-white text-lg font-bold">Confirm Booking — {formatPrice(finalAmount())}</Text>}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              className={`py-4 rounded-2xl items-center ${canContinue && chosen ? 'bg-primary-500' : 'bg-dark-600'}`}
+              onPress={() => setStep(step + 1)}
+              disabled={!canContinue || !chosen}
+            >
+              <Text className="text-white text-lg font-bold">Continue</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   )
 }

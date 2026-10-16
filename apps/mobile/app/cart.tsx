@@ -3,13 +3,14 @@ import { router } from 'expo-router'
 import { Image } from 'expo-image'
 import { useState } from 'react'
 import { useCartStore } from '@/store/cartStore'
-import { urlFor } from '@/lib/sanity'
+import { imageUri } from '@/lib/sanity'
 import { api, errorMessage } from '@/lib/api'
 import type { DiscountCode } from '@cutty/types'
 import { Ionicons } from '@expo/vector-icons'
 import { useFormatPrice } from '@/lib/currency'
+import { withShop } from '@/lib/features'
 
-export default function CartScreen() {
+function CartScreen() {
   const formatPrice = useFormatPrice()
   const { items, removeItem, updateQuantity, subtotal, discount, total, setDiscountCode, discountCode, clearCart } = useCartStore()
   const [codeInput, setCodeInput] = useState('')
@@ -65,7 +66,7 @@ export default function CartScreen() {
           <View key={item.product._id} className="bg-dark-800 rounded-2xl p-4 flex-row gap-4">
             <View className="w-20 h-20 rounded-xl bg-dark-700 overflow-hidden">
               {item.product.images?.[0] ? (
-                <Image source={{ uri: urlFor(item.product.images[0]).width(160).url() }} style={{ width: 80, height: 80 }} contentFit="cover" />
+                <Image source={{ uri: imageUri(item.product.images[0], 160, 160) }} style={{ width: 80, height: 80 }} contentFit="cover" />
               ) : <View className="w-20 h-20 items-center justify-center"><Ionicons name="image-outline" size={24} className="text-dark-600" /></View>}
             </View>
             <View className="flex-1">
@@ -143,3 +144,6 @@ export default function CartScreen() {
     </View>
   )
 }
+
+// Hidden until the shop launches (v2.0).
+export default withShop(CartScreen)

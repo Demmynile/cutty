@@ -1,9 +1,10 @@
 import { getAuthToken } from './auth'
+import { resolveDevUrl } from './devHost'
 
 // Single gateway from the app to the Cutty API (apps/admin). The app holds no
 // database credentials: every read and write goes through here, authenticated
 // with the signed-in customer's session token.
-const API_URL = process.env.EXPO_PUBLIC_API_URL
+const API_URL = resolveDevUrl(process.env.EXPO_PUBLIC_API_URL)
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -53,6 +54,15 @@ export async function api<T>(method: Method, path: string, body?: unknown, timeo
   } finally {
     clearTimeout(timer)
   }
+}
+
+/**
+ * Server unreachable, still starting, overloaded or unable to verify the token:
+ * worth retrying, and never a reason to sign the user out.
+ */
+export function isTransientError(err: unknown) {
+  if (!(err instanceof ApiError)) return true
+  return err.status === 0 || err.status === 401 || err.status === 429 || err.status >= 500
 }
 
 export function errorMessage(err: unknown, fallback = 'Something went wrong. Please try again.') {

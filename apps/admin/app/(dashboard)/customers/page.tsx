@@ -1,4 +1,5 @@
 import { sanityClient, formatPrice } from '@/lib/sanity'
+import { requireAdmin } from '@/lib/server/adminAuth'
 import type { Customer } from '@cutty/types'
 import { TIER_COLORS } from './tierColors'
 
@@ -9,6 +10,7 @@ async function getCustomers() {
 }
 
 export default async function CustomersPage() {
+  await requireAdmin() // re-checks the admin in the database on every request
   const customers: Customer[] = await getCustomers()
 
   return (

@@ -16,6 +16,7 @@ export const adminUser = defineType({
     defineField({ name: 'passwordHash', type: 'string', hidden: true, readOnly: true }),
     defineField({ name: 'totpSecret', type: 'string', hidden: true, readOnly: true }),
     defineField({ name: 'sessionVersion', type: 'number', hidden: true, readOnly: true }),
+    defineField({ name: 'totpLastStep', type: 'number', hidden: true, readOnly: true, description: 'Last authenticator time step used; blocks code reuse.' }),
   ],
   preview: { select: { title: 'name', subtitle: 'email' } },
 })

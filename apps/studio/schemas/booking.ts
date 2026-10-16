@@ -19,13 +19,7 @@ export const booking = defineType({
       to: [{ type: 'barber' }],
       validation: (r) => r.required(),
     }),
-    defineField({
-      name: 'services',
-      title: 'Services',
-      type: 'array',
-      of: [{ type: 'reference', to: [{ type: 'service' }] }],
-      validation: (r) => r.required().min(1),
-    }),
+    defineField({ name: 'style', title: 'Requested Style', type: 'string', description: "Picked from the stylist's styles when booking." }),
     defineField({ name: 'bookingDate', title: 'Booking Date', type: 'date', validation: (r) => r.required() }),
     defineField({ name: 'startTime', title: 'Start Time', type: 'string', validation: (r) => r.required() }),
     defineField({ name: 'endTime', title: 'End Time', type: 'string' }),
@@ -55,6 +49,7 @@ export const booking = defineType({
     defineField({ name: 'cancelReason', title: 'Cancellation Reason', type: 'string' }),
     defineField({ name: 'review', title: 'Customer Review', type: 'text' }),
     defineField({ name: 'rating', title: 'Rating', type: 'number', validation: (r) => r.min(1).max(5) }),
+    defineField({ name: 'completedAt', title: 'Completed At', type: 'datetime' }),
     defineField({ name: 'createdAt', title: 'Created At', type: 'datetime' }),
   ],
   preview: {

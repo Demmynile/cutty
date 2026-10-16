@@ -1,42 +1,51 @@
-import { useEffect, useState } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native'
+import { useState } from 'react'
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, FlatList } from 'react-native'
 import { router } from 'expo-router'
-import { useAuthStore } from '@/store/authStore'
-import { api } from '@/lib/api'
-import type { Booking, BookingStatus } from '@cutty/types'
+import { styleLabel, type Booking, type BookingStatus } from '@cutty/types'
 import { Ionicons } from '@expo/vector-icons'
+import { useBookings, usePullToRefresh } from '@/lib/data'
 import { useFormatPrice } from '@/lib/currency'
-
-const STATUS_COLOR: Record<BookingStatus, string> = {
-  pending: '#F59E0B',
-  confirmed: '#3B82F6',
-  in_progress: '#8B5CF6',
-  completed: '#22C55E',
-  cancelled: '#EF4444',
-  no_show: '#6B7280',
-}
+import { statusColor } from '@/constants'
 
 const FILTERS: Array<BookingStatus | 'all'> = ['all', 'pending', 'confirmed', 'completed', 'cancelled']
 
 export default function BookingsScreen() {
   const formatPrice = useFormatPrice()
-  const { customer } = useAuthStore()
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const { data: bookings = [], isLoading, refetch } = useBookings()
   const [filter, setFilter] = useState<BookingStatus | 'all'>('all')
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-
-  async function fetchBookings() {
-    if (!customer) return
-    const data = await api<Booking[]>('GET', '/api/v1/bookings')
-    setBookings(data)
-  }
-
-  useEffect(() => {
-    fetchBookings().finally(() => setLoading(false))
-  }, [])
+  const { refreshing, onRefresh } = usePullToRefresh(refetch)
 
   const filtered = filter === 'all' ? bookings : bookings.filter((b) => b.status === filter)
+
+  function renderItem({ item: booking }: { item: Booking }) {
+    const color = statusColor(booking.status)
+    return (
+      <TouchableOpacity className="bg-dark-800 rounded-2xl p-4" onPress={() => router.push(`/booking/${booking._id}`)}>
+        <View className="flex-row items-start justify-between">
+          <View className="flex-1">
+            <Text className="text-fg font-bold text-base">{booking.bookingDate}</Text>
+            <Text className="text-dark-400 text-sm mt-1">
+              {booking.startTime} · {booking.barber?.name}
+            </Text>
+            {booking.style && <Text className="text-dark-400 text-sm mt-1">{styleLabel(booking.style)}</Text>}
+          </View>
+          <View className="items-end gap-2">
+            <View className="px-3 py-1 rounded-full" style={{ backgroundColor: color + '33' }}>
+              <Text className="text-xs font-medium capitalize" style={{ color }}>
+                {booking.status.replace('_', ' ')}
+              </Text>
+            </View>
+            <Text className="text-fg font-bold">{formatPrice(booking.totalAmount)}</Text>
+          </View>
+        </View>
+        {booking.pointsEarned > 0 && (
+          <View className="mt-3 pt-3 border-t border-dark-700 flex-row items-center gap-2">
+            <Text className="text-primary-400 text-xs">⭐ {booking.pointsEarned} points earned</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    )
+  }
 
   return (
     <View className="flex-1 bg-dark-900">
@@ -65,7 +74,7 @@ export default function BookingsScreen() {
         </ScrollView>
       </View>
 
-      {loading ? (
+      {isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#D4891A" size="large" />
         </View>
@@ -79,44 +88,14 @@ export default function BookingsScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView
-          className="flex-1"
+        <FlatList
+          data={filtered}
+          keyExtractor={(b) => b._id}
+          renderItem={renderItem}
           contentContainerStyle={{ padding: 20, gap: 12 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await fetchBookings(); setRefreshing(false) }} tintColor="#D4891A" />}
-        >
-          {filtered.map((booking) => (
-            <TouchableOpacity
-              key={booking._id}
-              className="bg-dark-800 rounded-2xl p-4"
-              onPress={() => router.push(`/booking/${booking._id}`)}
-            >
-              <View className="flex-row items-start justify-between">
-                <View className="flex-1">
-                  <Text className="text-fg font-bold text-base">{booking.bookingDate}</Text>
-                  <Text className="text-dark-400 text-sm mt-1">
-                    {booking.startTime} · {booking.barber?.name}
-                  </Text>
-                  <Text className="text-dark-400 text-sm mt-1">
-                    {booking.services?.map((s) => s.name).join(', ')}
-                  </Text>
-                </View>
-                <View className="items-end gap-2">
-                  <View className="px-3 py-1 rounded-full" style={{ backgroundColor: STATUS_COLOR[booking.status] + '33' }}>
-                    <Text className="text-xs font-medium capitalize" style={{ color: STATUS_COLOR[booking.status] }}>
-                      {booking.status.replace('_', ' ')}
-                    </Text>
-                  </View>
-                  <Text className="text-fg font-bold">{formatPrice(booking.totalAmount)}</Text>
-                </View>
-              </View>
-              {booking.pointsEarned > 0 && (
-                <View className="mt-3 pt-3 border-t border-dark-700 flex-row items-center gap-2">
-                  <Text className="text-primary-400 text-xs">⭐ {booking.pointsEarned} points earned</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+          initialNumToRender={8}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4891A" />}
+        />
       )}
     </View>
   )

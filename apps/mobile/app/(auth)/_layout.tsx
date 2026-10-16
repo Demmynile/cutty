@@ -1,9 +1,9 @@
 import { Redirect, Stack } from 'expo-router'
-import { useAuthStore } from '@/store/authStore'
+import { useAuthStore, homeFor } from '@/store/authStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
 
 export default function AuthLayout() {
-  const { isAuthenticated, isLoading } = useAuthStore()
+  const { isAuthenticated, isLoading, role } = useAuthStore()
   const { hydrated, completedThisSession } = useOnboardingStore()
 
   // Play the intro slideshow on every app launch, until it's dismissed this session.
@@ -12,7 +12,7 @@ export default function AuthLayout() {
   }
 
   if (!isLoading && isAuthenticated) {
-    return <Redirect href="/(tabs)" />
+    return <Redirect href={homeFor(role)} />
   }
 
   return (
@@ -20,6 +20,9 @@ export default function AuthLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
+      <Stack.Screen name="pro-login" />
+      <Stack.Screen name="pro-register" />
+      <Stack.Screen name="forgot-password" />
     </Stack>
   )
 }

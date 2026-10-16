@@ -9,7 +9,7 @@ import { HttpError } from '@/lib/server/http'
 export async function guardAIRequest(req: Request, feature: string, limit: number, windowMs: number) {
   try {
     const { customerId } = await requireCustomer(req)
-    rateLimit(`ai:${feature}:${customerId}`, limit, windowMs)
+    await rateLimit(`ai:${feature}:${customerId}`, limit, windowMs)
     return null
   } catch (err) {
     if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status })

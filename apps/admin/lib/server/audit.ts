@@ -1,7 +1,7 @@
 import 'server-only'
 import { serverClient, now } from './sanity'
 
-export type AuditActor = { type: 'customer' | 'admin' | 'system'; id: string; email?: string }
+export type AuditActor = { type: 'customer' | 'admin' | 'stylist' | 'system'; id: string; email?: string }
 
 export type AuditEvent = {
   action: string

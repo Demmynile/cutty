@@ -30,14 +30,14 @@ const schema = z.object({
   discountCode: z.string().trim().max(64).optional(),
 })
 
-type ProductRow = { _id: string; name: string; price: number; stock?: number; pointsEarned?: number }
+type ProductRow = { _id: string; name: string; price: number; stock?: number; pointsEarned?: number; sellerId?: string }
 
 // Totals are always computed here from current product prices. Wallet orders
 // are debited atomically; card/transfer orders stay `pending` until Paystack
 // confirms payment (lib/server/paystack.ts → settlePayment).
 export const POST = route(async (req) => {
   const { customerId, email } = await requireCustomer(req)
-  rateLimit(`order:${customerId}`, 10, 60 * 60 * 1000)
+  await rateLimit(`order:${customerId}`, 10, 60 * 60 * 1000)
   const body = await parseBody(req, schema)
 
   const quantities = new Map<string, number>()
@@ -48,15 +48,37 @@ export const POST = route(async (req) => {
     if (typeof p.stock === 'number' && p.stock < quantities.get(p._id)!) throw new HttpError(400, `Only ${p.stock} of ${p.name} left in stock.`)
   }
 
+  // One order = one seller (Cutty or a single stylist shop), because a
+  // Paystack charge can only be split to one subaccount.
+  const sellers = new Set(products.map((p) => p.sellerId ?? 'cutty'))
+  if (sellers.size > 1) throw new HttpError(400, 'Your cart has items from different shops. Please check out one shop at a time.')
+  const sellerId = products[0].sellerId
+  let subaccount: string | undefined
+  if (sellerId) {
+    if (body.paymentMethod === 'wallet') {
+      throw new HttpError(400, "Stylist shops don't accept wallet payments yet. Please pay by card or transfer.")
+    }
+    const seller = await serverClient.fetch<{ status?: string; subaccountCode?: string } | null>(
+      `*[_type == "stylist" && _id == $id][0]{ "status": shop.status, "subaccountCode": shop.subaccountCode }`,
+      { id: sellerId },
+    )
+    if (seller?.status !== 'approved' || !seller.subaccountCode) throw new HttpError(400, 'This shop is not accepting orders right now.')
+    subaccount = seller.subaccountCode
+  }
+
   const subtotal = products.reduce((sum, p) => sum + p.price * quantities.get(p._id)!, 0)
-  const pointsEarned = products.reduce((sum, p) => sum + (p.pointsEarned ?? 0) * quantities.get(p._id)!, 0)
+  // Transfers paid straight to a stylist aren't verified by Cutty, so they earn no points.
+  const unverifiedTransfer = !!sellerId && body.paymentMethod === 'transfer'
+  const pointsEarned = unverifiedTransfer ? 0 : products.reduce((sum, p) => sum + (p.pointsEarned ?? 0) * quantities.get(p._id)!, 0)
   const discount = body.discountCode ? await loadDiscount(body.discountCode, 'order', subtotal, customerId) : null
   const totalAmount = subtotal - (discount?.amount ?? 0)
 
   const _id = newId()
   const number = orderNumber()
   const payNow = body.paymentMethod === 'wallet' || totalAmount === 0
-  const reference = payNow ? undefined : `cutty_ord_${_id.replace(/-/g, '')}`
+  // Transfers to a stylist are confirmed by the stylist (pro/sales/[id]), not Paystack.
+  const sellerTransfer = !!sellerId && body.paymentMethod === 'transfer'
+  const reference = payNow || sellerTransfer ? undefined : `cutty_ord_${_id.replace(/-/g, '')}`
 
   const order = {
     _id,
@@ -80,6 +102,8 @@ export const POST = route(async (req) => {
     paymentReference: reference,
     shippingAddress: body.shippingAddress,
     ...(discount ? { discountCode: ref(discount.doc._id) } : {}),
+    ...(sellerId ? { seller: ref(sellerId) } : {}),
+    ...(subaccount && reference ? { splitSubaccount: subaccount } : {}),
     createdAt: now(),
   }
 
@@ -118,7 +142,12 @@ export const POST = route(async (req) => {
   }
   await tx.commit()
 
-  const authorizationUrl = await initializePayment({ email, amount: totalAmount, reference: reference!, kind: 'order', callbackUrl: callbackUrl(req) })
+  if (sellerTransfer) {
+    await audit({ action: 'order.create', actor: { type: 'customer', id: customerId, email }, target: { type: 'order', id: _id }, details: { totalAmount, paymentMethod: 'transfer', sellerId } })
+    return NextResponse.json({ _id, orderNumber: number, status: 'pending', awaitingSeller: true }, { status: 201 })
+  }
+
+  const authorizationUrl = await initializePayment({ email, amount: totalAmount, reference: reference!, kind: 'order', callbackUrl: callbackUrl(req), subaccount })
   await audit({ action: 'order.create', actor: { type: 'customer', id: customerId, email }, target: { type: 'order', id: _id }, details: { totalAmount, paymentMethod: body.paymentMethod, reference } })
   return NextResponse.json({ _id, orderNumber: number, status: 'pending', authorizationUrl, reference }, { status: 201 })
 })

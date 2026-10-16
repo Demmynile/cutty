@@ -21,6 +21,8 @@ export async function initializePayment(args: {
   reference: string
   kind: PaymentKind
   callbackUrl: string
+  /** Stylist's Paystack subaccount: Paystack splits the charge, Cutty keeps the subaccount's percentage_charge. */
+  subaccount?: string
 }): Promise<string> {
   const res = await fetch(`${API}/transaction/initialize`, {
     method: 'POST',
@@ -32,6 +34,8 @@ export async function initializePayment(args: {
       reference: args.reference,
       callback_url: args.callbackUrl,
       metadata: { kind: args.kind },
+      // Paystack's fees come out of the stylist's share, not Cutty's commission.
+      ...(args.subaccount ? { subaccount: args.subaccount, bearer: 'subaccount' } : {}),
     }),
   })
   const json = await res.json().catch(() => null)
@@ -40,6 +44,55 @@ export async function initializePayment(args: {
     throw new HttpError(502, 'Could not start the payment. Please try again.')
   }
   return json.data.authorization_url as string
+}
+
+async function paystackGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${secretKey()}` }, cache: 'no-store' })
+  const json = await res.json().catch(() => null)
+  if (!res.ok || !json?.status) {
+    console.error('[paystack] GET failed', path.split('?')[0], res.status, json?.message)
+    throw new HttpError(502, json?.message && res.status === 422 ? json.message : 'Paystack is not responding. Please try again.')
+  }
+  return json.data as T
+}
+
+let bankCache: { at: number; banks: Array<{ code: string; name: string }> } | null = null
+
+export async function listBanks() {
+  if (bankCache && Date.now() - bankCache.at < 24 * 60 * 60 * 1000) return bankCache.banks
+  const data = await paystackGet<Array<{ name: string; code: string; active: boolean }>>('/bank?country=nigeria&currency=NGN&perPage=200')
+  const banks = data.filter((b) => b.active).map((b) => ({ code: b.code, name: b.name })).sort((a, b) => a.name.localeCompare(b.name))
+  bankCache = { at: Date.now(), banks }
+  return banks
+}
+
+/** Looks up the account holder's name so the stylist can confirm it before submitting. */
+export async function resolveAccount(accountNumber: string, bankCode: string) {
+  const data = await paystackGet<{ account_name: string }>(
+    `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
+  )
+  return data.account_name
+}
+
+/** Creates the stylist's split-payment subaccount. Cutty keeps `commissionPercent` of every sale. */
+export async function createSubaccount(args: { businessName: string; bankCode: string; accountNumber: string; commissionPercent: number; email: string }) {
+  const res = await fetch(`${API}/subaccount`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secretKey()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      business_name: args.businessName,
+      settlement_bank: args.bankCode,
+      account_number: args.accountNumber,
+      percentage_charge: args.commissionPercent,
+      primary_contact_email: args.email,
+    }),
+  })
+  const json = await res.json().catch(() => null)
+  if (!res.ok || !json?.status) {
+    console.error('[paystack] subaccount failed', res.status, json?.message)
+    throw new HttpError(502, json?.message ? `Paystack: ${json.message}` : 'Could not create the Paystack subaccount.')
+  }
+  return json.data.subaccount_code as string
 }
 
 type VerifiedTx = { status: string; amount: number; reference: string; currency: string }

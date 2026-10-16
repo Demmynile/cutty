@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { serverClient, ref, now } from '@/lib/server/sanity'
+import { assertSlotFree, shopNow, toMinutes } from '@/lib/server/availability'
 import { route, parseBody, HttpError } from '@/lib/server/http'
 import { requireCustomer } from '@/lib/server/customerAuth'
 import { rateLimit } from '@/lib/server/rateLimit'
 import { loadDiscount, consumeDiscount } from '@/lib/server/discounts'
 import { newId } from '@/lib/server/ledger'
 import { audit } from '@/lib/server/audit'
-import { BOOKINGS_BY_CUSTOMER, SERVICES_BY_IDS, BARBER_AVAILABLE_BY_ID } from '@/lib/server/queries'
+import { bookingPoints } from '@/lib/server/bookings'
+import { BOOKINGS_BY_CUSTOMER, BOOKABLE_STYLIST_BY_BARBER_ID } from '@/lib/server/queries'
 
 export const runtime = 'nodejs'
+
+const MAX_ACTIVE_BOOKINGS = 5
 
 export const GET = route(async (req) => {
   const { customerId } = await requireCustomer(req)
@@ -17,35 +21,43 @@ export const GET = route(async (req) => {
 })
 
 const schema = z.object({
-  serviceIds: z.array(z.string().min(1)).min(1).max(10),
   barberId: z.string().min(1),
+  style: z.string().trim().min(1).max(60).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
   notes: z.string().max(500).optional(),
   discountCode: z.string().trim().max(64).optional(),
 })
 
-// Prices and points come from the service documents, not the client.
-// Loyalty points and the visit count are awarded when staff mark the booking
+// Customers book a stylist, not a service: price, length and points come
+// from the stylist's own appointment price, never the client. Loyalty points and the visit count are awarded when staff mark the booking
 // completed (admin dashboard), so creating-then-cancelling earns nothing.
 export const POST = route(async (req) => {
   const { customerId, email } = await requireCustomer(req)
-  rateLimit(`booking:${customerId}`, 10, 60 * 60 * 1000)
+  await rateLimit(`booking:${customerId}`, 10, 60 * 60 * 1000)
   const body = await parseBody(req, schema)
 
-  const ids = [...new Set(body.serviceIds)]
-  const [services, barber] = await Promise.all([
-    serverClient.fetch<Array<{ _id: string; price: number; pointsEarned?: number }>>(SERVICES_BY_IDS, { ids }),
-    serverClient.fetch(BARBER_AVAILABLE_BY_ID, { id: body.barberId }),
-  ])
-  if (services.length !== ids.length) throw new HttpError(400, 'One or more services are no longer available.')
-  if (!barber) throw new HttpError(400, 'That stylist is not available.')
-  if (new Date(`${body.date}T${body.time}:00`) < new Date(Date.now() - 60_000)) {
+  const stylist = await serverClient.fetch<{ _id: string; styles: string[]; bookingPrice: number; bookingDuration: number } | null>(
+    BOOKABLE_STYLIST_BY_BARBER_ID, { id: body.barberId },
+  )
+  if (!stylist) throw new HttpError(400, 'That stylist is not taking bookings right now.')
+  if (body.style && !stylist.styles.includes(body.style)) throw new HttpError(400, "That style isn't one this stylist offers.")
+  const today = shopNow()
+  // Unpaid bookings hold stylists' time, so one customer can't block a day.
+  const active = await serverClient.fetch<number>(
+    `count(*[_type == "booking" && customer._ref == $customerId && status in ["pending", "confirmed"] && bookingDate >= $today])`,
+    { customerId, today: today.date },
+  )
+  if (active >= MAX_ACTIVE_BOOKINGS) {
+    throw new HttpError(400, `You already have ${MAX_ACTIVE_BOOKINGS} upcoming bookings. Please attend or cancel one before booking again.`)
+  }
+  if (body.date < today.date || (body.date === today.date && toMinutes(body.time) <= today.minutes)) {
     throw new HttpError(400, 'Please choose a time in the future.')
   }
+  const endTime = await assertSlotFree(body.barberId, body.date, body.time, stylist.bookingDuration)
 
-  const totalAmount = services.reduce((sum, s) => sum + s.price, 0)
-  const pointsEarned = services.reduce((sum, s) => sum + (s.pointsEarned ?? 0), 0)
+  const totalAmount = stylist.bookingPrice
+  const pointsEarned = bookingPoints(totalAmount)
   const discount = body.discountCode ? await loadDiscount(body.discountCode, 'booking', totalAmount, customerId) : null
 
   const _id = newId()
@@ -54,9 +66,10 @@ export const POST = route(async (req) => {
     _type: 'booking',
     customer: ref(customerId),
     barber: ref(body.barberId),
-    services: ids.map((id) => ({ ...ref(id), _key: id })),
+    ...(body.style ? { style: body.style } : {}),
     bookingDate: body.date,
     startTime: body.time,
+    endTime,
     totalAmount,
     discountAmount: discount?.amount ?? 0,
     pointsEarned,

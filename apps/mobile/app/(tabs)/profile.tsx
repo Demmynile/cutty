@@ -2,14 +2,17 @@ import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { router } from 'expo-router'
 import { Image } from 'expo-image'
 import { useAuthStore } from '@/store/authStore'
-import { urlFor } from '@/lib/sanity'
+import { imageUri } from '@/lib/sanity'
 import { TIER_COLORS } from '@/constants'
 import { Ionicons } from '@expo/vector-icons'
 import { useFormatPrice } from '@/lib/currency'
+import { FEATURES } from '@/lib/features'
 
 const MENU_ITEMS = [
   { icon: 'calendar-outline', label: 'My Bookings', route: '/(tabs)/bookings' },
-  { icon: 'bag-outline', label: 'My Orders', route: '/orders' },
+  { icon: 'chatbubbles-outline', label: 'Messages', route: '/messages' },
+  { icon: 'people-outline', label: 'Find a Stylist', route: '/stylists' },
+  ...(FEATURES.shop ? [{ icon: 'bag-outline', label: 'My Orders', route: '/orders' }] : []),
   { icon: 'wallet-outline', label: 'Wallet', route: '/wallet' },
   { icon: 'star-outline', label: 'Loyalty Rewards', route: '/(tabs)/loyalty' },
   { icon: 'settings-outline', label: 'Settings', route: '/settings' },
@@ -37,7 +40,7 @@ export default function ProfileScreen() {
         <View className="flex-row items-center gap-4">
           <View className="w-18 h-18 rounded-full bg-dark-700 items-center justify-center overflow-hidden" style={{ width: 72, height: 72 }}>
             {customer?.avatar ? (
-              <Image source={{ uri: urlFor(customer.avatar).width(144).url() }} style={{ width: 72, height: 72 }} contentFit="cover" />
+              <Image source={{ uri: imageUri(customer.avatar, 144, 144) }} style={{ width: 72, height: 72 }} contentFit="cover" />
             ) : (
               <Text className="text-primary-400 text-3xl font-bold">
                 {customer?.fullName?.charAt(0)?.toUpperCase()}

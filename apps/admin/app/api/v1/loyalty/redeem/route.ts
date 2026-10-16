@@ -13,7 +13,7 @@ export const runtime = 'nodejs'
 
 export const POST = route(async (req) => {
   const { customerId, email } = await requireCustomer(req)
-  rateLimit(`redeem:${customerId}`, 10, 60 * 60 * 1000)
+  await rateLimit(`redeem:${customerId}`, 10, 60 * 60 * 1000)
   const { rewardId } = await parseBody(req, z.object({ rewardId: z.string() }))
   const reward = LOYALTY_REWARDS.find((r) => r.id === rewardId)
   if (!reward) throw new HttpError(400, 'Unknown reward')

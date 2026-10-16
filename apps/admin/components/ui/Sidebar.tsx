@@ -3,15 +3,17 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { FEATURES } from '@cutty/types'
 import { logout } from '@/app/(auth)/login/actions'
 
 const NAV = [
   { href: '/dashboard', icon: '📊', label: 'Dashboard' },
   { href: '/bookings', icon: '📅', label: 'Bookings' },
-  { href: '/services', icon: '✂', label: 'Services' },
-  { href: '/barbers', icon: '👤', label: 'Stylists' },
-  { href: '/products', icon: '🛍️', label: 'Products' },
-  { href: '/orders', icon: '📦', label: 'Orders' },
+  { href: '/stylists', icon: '💈', label: 'Stylists' },
+  ...(FEATURES.shop ? [
+    { href: '/products', icon: '🛍️', label: 'Products' },
+    { href: '/orders', icon: '📦', label: 'Orders' },
+  ] : []),
   { href: '/customers', icon: '👥', label: 'Customers' },
   { href: '/loyalty', icon: '⭐', label: 'Loyalty' },
   { href: '/payments', icon: '💰', label: 'Payments' },

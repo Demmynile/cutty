@@ -15,7 +15,7 @@ import {
 import { router } from 'expo-router'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
-import { api, ApiError, errorMessage } from '@/lib/api'
+import { api, errorMessage } from '@/lib/api'
 import { useTheme } from '@/lib/theme'
 import { useAuthStore } from '@/store/authStore'
 import { useAIChatStore } from '@/store/aiChatStore'
@@ -115,7 +115,6 @@ export default function SettingsScreen() {
   const [langModal, setLangModal] = useState(false)
   const [currencyModal, setCurrencyModal] = useState(false)
   const [deleteModal, setDeleteModal] = useState(false)
-  const [deletePassword, setDeletePassword] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
 
@@ -167,7 +166,6 @@ export default function SettingsScreen() {
 
   function closeDeleteModal() {
     setDeleteModal(false)
-    setDeletePassword('')
     setDeleteConfirm('')
   }
 
@@ -175,7 +173,7 @@ export default function SettingsScreen() {
     if (!customer) return
     setDeleting(true)
     try {
-      await api('DELETE', '/api/v1/me', { password: deletePassword })
+      await api('DELETE', '/api/v1/me', { confirm: 'DELETE' })
       clearAIHistory()
       clearCart()
       closeDeleteModal()
@@ -183,17 +181,13 @@ export default function SettingsScreen() {
       router.replace('/(auth)')
       Alert.alert('Account deleted', 'Your account and personal data have been removed.')
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        Alert.alert('Incorrect password', 'Enter your current password to delete your account.')
-        return
-      }
       Alert.alert('Error', errorMessage(err, 'Could not delete your account. Please try again.'))
     } finally {
       setDeleting(false)
     }
   }
 
-  const canDelete = deleteConfirm.trim().toUpperCase() === 'DELETE' && deletePassword.length > 0 && !deleting
+  const canDelete = deleteConfirm.trim().toUpperCase() === 'DELETE' && !deleting
 
   return (
     <View className="flex-1 bg-dark-900">
@@ -378,16 +372,6 @@ export default function SettingsScreen() {
               order history is kept anonymously for the shop's records. This cannot be undone.
             </Text>
 
-            <Text className="text-dark-300 text-sm mb-2">Current password</Text>
-            <TextInput
-              className="bg-dark-700 text-fg px-4 py-3 rounded-xl border border-dark-600 mb-4"
-              placeholder="Enter your password"
-              placeholderTextColor="#686868"
-              secureTextEntry
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-              editable={!deleting}
-            />
             <Text className="text-dark-300 text-sm mb-2">
               Type <Text className="text-red-500 font-bold">DELETE</Text> to confirm
             </Text>

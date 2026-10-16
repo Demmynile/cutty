@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "3.0.181",
+    "@clerk/backend": "^3.23.2",
     "@cutty/types": "*",
     "@sanity/client": "^6.22.1",
     "@sanity/image-url": "^1.0.2",
     "ai": "^6.0.266",
     "date-fns": "^4.1.0",
+    "ioredis": "^5.11.1",
     "jose": "^5.10.0",
     "lucide-react": "^0.462.0",
     "next": "^15.0.3",

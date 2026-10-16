@@ -1,4 +1,5 @@
 import { sanityClient, formatPrice } from '@/lib/sanity'
+import { requireAdmin } from '@/lib/server/adminAuth'
 import { Badge, orderStatusColor } from '@/components/ui/Badge'
 import type { Order } from '@cutty/types'
 import { OrderStatusAction } from './OrderStatusAction'
@@ -12,6 +13,7 @@ async function getOrders() {
 }
 
 export default async function OrdersPage() {
+  await requireAdmin() // re-checks the admin in the database on every request
   const orders: Order[] = await getOrders()
   const totalRevenue = orders.filter((o) => ['paid', 'processing', 'shipped', 'delivered'].includes(o.status)).reduce((s, o) => s + o.totalAmount, 0)
 

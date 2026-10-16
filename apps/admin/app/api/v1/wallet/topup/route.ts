@@ -19,7 +19,7 @@ const schema = z.object({
 // The balance only changes once Paystack confirms the charge (settlePayment).
 export const POST = route(async (req) => {
   const { customerId, email } = await requireCustomer(req)
-  rateLimit(`topup:${customerId}`, 10, 60 * 60 * 1000)
+  await rateLimit(`topup:${customerId}`, 10, 60 * 60 * 1000)
   const { amount } = await parseBody(req, schema)
 
   const _id = newId()

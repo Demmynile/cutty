@@ -30,6 +30,13 @@ export const product = defineType({
       options: { layout: 'tags' },
     }),
     defineField({ name: 'weight', title: 'Weight (grams)', type: 'number' }),
+    defineField({
+      name: 'seller',
+      title: 'Sold By (stylist)',
+      type: 'reference',
+      to: [{ type: 'stylist' }],
+      description: "Empty for the shop's own products. Set for products in a Cutty Pro stylist's shop.",
+    }),
   ],
   preview: {
     select: { title: 'name', subtitle: 'price', media: 'images.0' },

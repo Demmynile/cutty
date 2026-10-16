@@ -1,5 +1,9 @@
 import { Sidebar } from '@/components/ui/Sidebar'
 
+// Pages read live Sanity data; without this `next build` prerenders them once
+// and production serves that build-time snapshot forever.
+export const dynamic = 'force-dynamic'
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-gray-950">

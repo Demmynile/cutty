@@ -16,7 +16,7 @@ const schema = z.object({ amount: z.number().int().min(10_000).max(100_000_000) 
 // this needs Paystack Transfers plus verified bank details for each customer.
 export const POST = route(async (req) => {
   const { customerId, email } = await requireCustomer(req)
-  rateLimit(`withdraw:${customerId}`, 3, 24 * 60 * 60 * 1000)
+  await rateLimit(`withdraw:${customerId}`, 3, 24 * 60 * 60 * 1000)
   const { amount } = await parseBody(req, schema)
 
   const balanceAfter = await mutateCustomer(customerId, (c) => {

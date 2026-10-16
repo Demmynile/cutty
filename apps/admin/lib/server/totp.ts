@@ -36,12 +36,20 @@ function codeAt(key: Buffer, counter: number): string {
   return bin.toString().padStart(6, '0')
 }
 
-// Accepts the previous/current/next step to tolerate clock drift.
-export function verifyTotp(secret: string, code: string): boolean {
-  if (!/^\d{6}$/.test(code)) return false
+// Accepts the previous/current/next step to tolerate clock drift. Returns the
+// matching time step (so callers can refuse a code that was already used), or null.
+export function matchTotp(secret: string, code: string): number | null {
+  if (!/^\d{6}$/.test(code)) return null
   const key = base32Decode(secret)
   const step = Math.floor(Date.now() / 1000 / 30)
-  return [-1, 0, 1].some((d) => timingSafeEqual(Buffer.from(codeAt(key, step + d)), Buffer.from(code)))
+  for (const d of [-1, 0, 1]) {
+    if (timingSafeEqual(Buffer.from(codeAt(key, step + d)), Buffer.from(code))) return step + d
+  }
+  return null
+}
+
+export function verifyTotp(secret: string, code: string): boolean {
+  return matchTotp(secret, code) !== null
 }
 
 export function totpUri(secret: string, email: string) {

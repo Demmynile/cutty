@@ -9,41 +9,30 @@ export const CUSTOMER_PUBLIC_FIELDS = `
 
 export const CUSTOMER_BY_ID = `*[_type == "customer" && _id == $customerId][0]{ ${CUSTOMER_PUBLIC_FIELDS} }`
 
-// Server-only: includes the password hash. Never return this projection to a client.
-export const CUSTOMER_CREDENTIALS_BY_EMAIL = `*[_type == "customer" && lower(email) == $email && isActive != false][0]{
-  _id, _rev, password, sessionVersion
+// Customers sign in with Clerk; clerkUserId links the Clerk user to this record.
+export const CUSTOMER_SESSION_BY_CLERK_ID = `*[_type == "customer" && clerkUserId == $clerkUserId][0]{
+  _id, email, isActive
 }`
 
-export const CUSTOMER_CREDENTIALS_BY_ID = `*[_type == "customer" && _id == $customerId][0]{
-  _id, _rev, password, sessionVersion, isActive
+// A pre-Clerk account that a newly signed-in Clerk user (same verified email) can claim.
+export const CUSTOMER_LINKABLE_BY_EMAIL = `*[_type == "customer" && lower(email) == $email && isActive != false][0]{
+  _id, _rev, clerkUserId
 }`
-
-export const CUSTOMER_SESSION_BY_ID = `*[_type == "customer" && _id == $customerId][0]{
-  _id, email, isActive, sessionVersion
-}`
-
-export const CUSTOMER_EXISTS_BY_EMAIL = `count(*[_type == "customer" && (lower(email) == $email || uid == $uid)])`
 
 export const EXCHANGE_RATES = `*[_type == "settings"][0].exchangeRates`
 
-export const SERVICES_ACTIVE = `*[_type == "service" && isActive == true] | order(_createdAt asc){
-  _id, name, description, image, price, duration, pointsEarned, category
+// Customers book a Cutty Pro stylist (found on the map or in search). Each
+// stylist's `barber` record is their calendar; price and length come from
+// the stylist, so a booking is only possible once they've set a price.
+export const BOOKABLE_STYLIST_BY_BARBER_ID = `*[_type == "stylist" && barber._ref == $id && status == "approved" && isActive != false
+  && defined(bookingPrice) && barber->isAvailable == true][0]{
+  _id, "styles": coalesce(styles, []), bookingPrice, "bookingDuration": coalesce(bookingDuration, 60)
 }`
-
-export const SERVICES_BY_IDS = `*[_type == "service" && isActive == true && _id in $ids]{
-  _id, name, price, duration, pointsEarned
-}`
-
-export const BARBERS_AVAILABLE = `*[_type == "barber" && isAvailable == true] | order(name asc){
-  _id, name, photo, bio, specialties, rating, totalReviews, workingHours, workingDays
-}`
-
-export const BARBER_AVAILABLE_BY_ID = `*[_type == "barber" && isAvailable == true && _id == $id][0]{ _id }`
 
 export const BOOKINGS_BY_CUSTOMER = `*[_type == "booking" && customer._ref == $customerId] | order(bookingDate desc){
   _id, bookingDate, startTime, endTime, status, totalAmount, paymentMethod, pointsEarned,
   barber->{ _id, name, photo },
-  services[]->{ _id, name, price, duration }
+  style
 }`
 
 export const BOOKING_BY_ID_FOR_CUSTOMER = `*[_type == "booking" && _id == $id && customer._ref == $customerId][0]{
@@ -51,28 +40,30 @@ export const BOOKING_BY_ID_FOR_CUSTOMER = `*[_type == "booking" && _id == $id &&
   paymentMethod, pointsEarned, notes, cancelReason, review, rating,
   customer->{ _id, fullName, phone },
   barber->{ _id, name, photo },
-  services[]->{ _id, name, price, duration },
+  style,
   discountCode->{ _id, code, type, value }
 }`
 
-export const PRODUCTS_ACTIVE = `*[_type == "product" && isActive == true] | order(_createdAt desc){
+// Products from Cutty and from approved stylist shops (a suspended shop's
+// products disappear without being edited).
+export const PRODUCTS_ACTIVE = `*[_type == "product" && isActive == true && (!defined(seller) || seller->shop.status == "approved")] | order(_createdAt desc){
   _id, name, slug, images, price, compareAtPrice, stock, pointsEarned, isFeatured, tags,
-  category->{ _id, name, slug }
+  category->{ _id, name, slug }, "seller": seller->{ _id, "name": coalesce(shop.name, displayName, fullName) }
 }`
 
-export const PRODUCTS_FEATURED = `*[_type == "product" && isActive == true && isFeatured == true][0..5]{
+export const PRODUCTS_FEATURED = `*[_type == "product" && isActive == true && isFeatured == true && (!defined(seller) || seller->shop.status == "approved")][0..5]{
   _id, name, slug, images, price, compareAtPrice, stock, pointsEarned,
-  category->{ _id, name }
+  category->{ _id, name }, "seller": seller->{ _id, "name": coalesce(shop.name, displayName, fullName) }
 }`
 
-export const PRODUCT_BY_SLUG = `*[_type == "product" && isActive == true && slug.current == $slug][0]{
+export const PRODUCT_BY_SLUG = `*[_type == "product" && isActive == true && slug.current == $slug && (!defined(seller) || seller->shop.status == "approved")][0]{
   _id, name, slug, description, images, price, compareAtPrice, stock,
   sku, pointsEarned, isFeatured, tags,
-  category->{ _id, name, slug }
+  category->{ _id, name, slug }, "seller": seller->{ _id, "name": coalesce(shop.name, displayName, fullName) }
 }`
 
-export const PRODUCTS_BY_IDS = `*[_type == "product" && isActive == true && _id in $ids]{
-  _id, name, price, stock, pointsEarned
+export const PRODUCTS_BY_IDS = `*[_type == "product" && isActive == true && _id in $ids && (!defined(seller) || seller->shop.status == "approved")]{
+  _id, name, price, stock, pointsEarned, "sellerId": seller._ref
 }`
 
 export const CATEGORIES_ALL = `*[_type == "category"] | order(name asc){
@@ -80,7 +71,8 @@ export const CATEGORIES_ALL = `*[_type == "category"] | order(name asc){
 }`
 
 export const ORDERS_BY_CUSTOMER = `*[_type == "order" && customer._ref == $customerId] | order(createdAt desc){
-  _id, orderNumber, status, totalAmount, createdAt, pointsEarned,
+  _id, orderNumber, status, totalAmount, createdAt, pointsEarned, paymentMethod,
+  "seller": seller->{ _id, "name": coalesce(shop.name, displayName, fullName) },
   items[]{ quantity, priceAtOrder, productName, product->{ _id, name, images } }
 }`
 
@@ -99,7 +91,7 @@ export const DISCOUNT_CODE_BY_CODE = `*[_type == "discountCode" && code == $code
 }`
 
 export const ADMIN_BY_EMAIL = `*[_type == "adminUser" && lower(email) == $email][0]{
-  _id, email, name, role, passwordHash, totpSecret, isActive, sessionVersion
+  _id, _rev, email, name, role, passwordHash, totpSecret, totpLastStep, isActive, sessionVersion
 }`
 
 export const ADMIN_SESSION_BY_ID = `*[_type == "adminUser" && _id == $id][0]{

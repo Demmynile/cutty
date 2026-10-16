@@ -8,14 +8,16 @@ import { discountCode } from './discountCode'
 import { loyaltyTransaction } from './loyaltyTransaction'
 import { order } from './order'
 import { product } from './product'
-import { service } from './service'
 import { settings } from './settings'
 import { walletTransaction } from './walletTransaction'
+import { stylist } from './stylist'
+import { conversation, chatMessage } from './conversation'
+import { aiSearch } from './aiSearch'
+import { waitlistEntry } from './waitlistEntry'
 
 export const schemaTypes = [
   customer,
   barber,
-  service,
   booking,
   category,
   product,
@@ -26,4 +28,9 @@ export const schemaTypes = [
   settings,
   adminUser,
   auditLog,
+  stylist,
+  conversation,
+  chatMessage,
+  aiSearch,
+  waitlistEntry,
 ]

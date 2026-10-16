@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Modal } from 'react-native'
 import { api, errorMessage } from '@/lib/api'
+import { invalidate, keys, useLoyaltyTransactions } from '@/lib/data'
 import { useAuthStore } from '@/store/authStore'
 import { LOYALTY_REWARDS } from '@cutty/types'
-import type { LoyaltyTransaction, LoyaltyReward } from '@cutty/types'
+import type { LoyaltyReward } from '@cutty/types'
 import { TIER_COLORS, POINTS_TO_KOBO_RATE } from '@/constants'
 import { Ionicons } from '@expo/vector-icons'
 
@@ -17,18 +18,9 @@ const TIERS = [
 
 export default function LoyaltyScreen() {
   const { customer, updateCustomer } = useAuthStore()
-  const [transactions, setTransactions] = useState<LoyaltyTransaction[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: transactions = [], isLoading: loading } = useLoyaltyTransactions()
   const [redeemModal, setRedeemModal] = useState(false)
   const [redeeming, setRedeeming] = useState(false)
-
-  useEffect(() => {
-    if (!customer) return
-    api<LoyaltyTransaction[]>('GET', '/api/v1/loyalty/transactions')
-      .then(setTransactions)
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
 
   const currentTier = TIERS.find((t) => t.name === customer?.tier) || TIERS[0]
   const nextTier = TIERS[TIERS.indexOf(currentTier) + 1]
@@ -43,7 +35,7 @@ export default function LoyaltyScreen() {
     try {
       const { code, loyaltyPoints } = await api<{ code: string; loyaltyPoints: number }>('POST', '/api/v1/loyalty/redeem', { rewardId: option.id })
       updateCustomer({ loyaltyPoints })
-      api<LoyaltyTransaction[]>('GET', '/api/v1/loyalty/transactions').then(setTransactions).catch(() => {})
+      invalidate(keys.loyalty)
       Alert.alert('Redeemed! 🎉', `Your discount code is:\n\n${code}\n\nValid for 30 days.`)
       setRedeemModal(false)
     } catch (err) {

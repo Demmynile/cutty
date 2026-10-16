@@ -63,6 +63,11 @@ export function newId() {
   return randomUUID()
 }
 
+/** Stable document id for a Clerk user's account, e.g. customer-user_2abc. */
+export function accountId(kind: 'customer' | 'stylist', clerkUserId: string) {
+  return `${kind}-${clerkUserId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+}
+
 const TIER_VISITS: Array<[LoyaltyTier, number]> = [
   ['platinum', 30],
   ['gold', 15],

@@ -7,10 +7,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import type { Customer } from '@cutty/types'
 import { api, errorMessage } from '@/lib/api'
 import { payWithPaystack } from '@/lib/payments'
+import { invalidate, keys } from '@/lib/data'
 import { useCartStore } from '@/store/cartStore'
 import { useAuthStore } from '@/store/authStore'
 import { Ionicons } from '@expo/vector-icons'
 import { useFormatPrice, usePreferredCurrency } from '@/lib/currency'
+import { withShop } from '@/lib/features'
 
 const schema = z.object({
   fullName: z.string().min(2),
@@ -23,12 +25,15 @@ type FormData = z.infer<typeof schema>
 
 type PayMethod = 'wallet' | 'card' | 'transfer'
 
-export default function CheckoutScreen() {
+function CheckoutScreen() {
   const formatPrice = useFormatPrice()
   const currency = usePreferredCurrency()
-  const [payMethod, setPayMethod] = useState<PayMethod>('wallet')
+  const { items, subtotal, discount, total, totalPoints, discountCode, clearCart, sellerId, sellerName } = useCartStore()
+  // Stylist shops are paid by card (split through Paystack) or by transfer
+  // straight to the stylist; the Cutty wallet only pays for Cutty's own shop.
+  const stylistShop = !!sellerId()
+  const [payMethod, setPayMethod] = useState<PayMethod>(stylistShop ? 'card' : 'wallet')
   const [submitting, setSubmitting] = useState(false)
-  const { items, subtotal, discount, total, totalPoints, discountCode, clearCart } = useCartStore()
   const { customer, updateCustomer } = useAuthStore()
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -50,7 +55,7 @@ export default function CheckoutScreen() {
     try {
       // The server prices the order from current product data and applies the
       // discount; wallet orders are debited there, card/transfer go to Paystack.
-      const order = await api<{ _id: string; orderNumber: string; status: string; authorizationUrl?: string; reference?: string }>(
+      const order = await api<{ _id: string; orderNumber: string; status: string; authorizationUrl?: string; reference?: string; awaitingSeller?: boolean }>(
         'POST', '/api/v1/orders', {
           items: items.map((i) => ({ productId: i.product._id, quantity: i.quantity })),
           shippingAddress: address,
@@ -59,6 +64,19 @@ export default function CheckoutScreen() {
         },
       )
 
+      invalidate(keys.orders, keys.products)
+
+      if (order.awaitingSeller) {
+        // Read the seller before clearing the cart, which forgets it.
+        const seller = sellerName()
+        clearCart()
+        Alert.alert(
+          'Order sent to the stylist',
+          `Order #${order.orderNumber} is waiting for ${seller}. Message them for their bank details; they confirm once your transfer arrives.`,
+          [{ text: 'View Orders', onPress: () => router.replace('/orders') }],
+        )
+        return
+      }
       let paid = order.status === 'paid'
       if (!paid && order.authorizationUrl && order.reference) {
         const outcome = await payWithPaystack(order.authorizationUrl, order.reference)
@@ -121,10 +139,13 @@ export default function CheckoutScreen() {
         {/* Payment Method */}
         <View className="bg-dark-800 rounded-2xl p-5 gap-3">
           <Text className="text-fg font-bold text-lg">Payment Method</Text>
+          {stylistShop && <Text className="text-dark-400 text-xs">Sold by {sellerName()}</Text>}
           {[
-            { id: 'wallet' as PayMethod, label: 'Wallet', icon: 'wallet', sub: `Balance: ${formatPrice(customer?.walletBalance || 0)}` },
+            ...(stylistShop ? [] : [{ id: 'wallet' as PayMethod, label: 'Wallet', icon: 'wallet', sub: `Balance: ${formatPrice(customer?.walletBalance || 0)}` }]),
             { id: 'card' as PayMethod, label: 'Card Payment', icon: 'card', sub: 'Pay with Paystack' },
-            { id: 'transfer' as PayMethod, label: 'Bank Transfer', icon: 'swap-horizontal', sub: 'Manual transfer' },
+            stylistShop
+              ? { id: 'transfer' as PayMethod, label: 'Bank Transfer to Stylist', icon: 'swap-horizontal', sub: 'Pay the stylist directly; they confirm your order' }
+              : { id: 'transfer' as PayMethod, label: 'Bank Transfer', icon: 'swap-horizontal', sub: 'Manual transfer' },
           ].map(({ id, label, icon, sub }) => (
             <TouchableOpacity
               key={id}
@@ -183,3 +204,6 @@ export default function CheckoutScreen() {
     </View>
   )
 }
+
+// Hidden until the shop launches (v2.0).
+export default withShop(CheckoutScreen)

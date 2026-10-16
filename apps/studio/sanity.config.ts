@@ -15,8 +15,7 @@ export default defineConfig({
           .title('Cutty Admin')
           .items([
             S.listItem().title('Bookings').child(S.documentTypeList('booking')),
-            S.listItem().title('Services').child(S.documentTypeList('service')),
-            S.listItem().title('Stylists').child(S.documentTypeList('barber')),
+            S.listItem().title('Stylists').child(S.documentTypeList('stylist')),
             S.divider(),
             S.listItem().title('Products').child(S.documentTypeList('product')),
             S.listItem().title('Categories').child(S.documentTypeList('category')),
@@ -26,6 +25,10 @@ export default defineConfig({
             S.listItem().title('Wallet Transactions').child(S.documentTypeList('walletTransaction')),
             S.listItem().title('Loyalty Transactions').child(S.documentTypeList('loyaltyTransaction')),
             S.listItem().title('Discount Codes').child(S.documentTypeList('discountCode')),
+            S.divider(),
+            S.listItem().title('Conversations').child(S.documentTypeList('conversation')),
+            S.listItem().title('AI Searches').child(S.documentTypeList('aiSearch')),
+            S.listItem().title('Waitlist').child(S.documentTypeList('waitlistEntry')),
             S.divider(),
             S.listItem().title('Settings').child(S.documentTypeList('settings')),
           ]),

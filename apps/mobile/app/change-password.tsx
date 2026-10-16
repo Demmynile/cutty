@@ -4,14 +4,15 @@ import { router } from 'expo-router'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { api, ApiError, errorMessage } from '@/lib/api'
-import { storeAuthToken } from '@/lib/auth'
-import { useAuthStore } from '@/store/authStore'
+import { useUser } from '@clerk/expo'
+import { clerkErrorMessage } from '@/lib/auth'
 import { Ionicons } from '@expo/vector-icons'
 
 const schema = z
   .object({
-    currentPassword: z.string().min(1, 'Enter your current password'),
+    // Optional here: Google-only accounts have no current password and don't
+    // see the field. onSubmit requires it when the account has one.
+    currentPassword: z.string().optional(),
     newPassword: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string(),
   })
@@ -21,8 +22,11 @@ const schema = z
   })
 type FormData = z.infer<typeof schema>
 
+// Passwords live in Clerk. Google-only accounts have no password yet and can
+// set one here without entering a current password.
 export default function ChangePasswordScreen() {
-  const { customer } = useAuthStore()
+  const { user } = useUser()
+  const hasPassword = user?.passwordEnabled ?? true
   const [saving, setSaving] = useState(false)
 
   const { control, handleSubmit, formState: { errors }, setError } = useForm<FormData>({
@@ -30,28 +34,32 @@ export default function ChangePasswordScreen() {
   })
 
   async function onSubmit({ currentPassword, newPassword }: FormData) {
-    if (!customer) return
+    if (!user) return
+    if (hasPassword && !currentPassword) {
+      setError('currentPassword', { message: 'Enter your current password' })
+      return
+    }
     setSaving(true)
     try {
-      // Signs out every other device; this one gets a fresh session token.
-      const { token } = await api<{ token: string }>('POST', '/api/v1/me/password', { currentPassword, newPassword })
-      await storeAuthToken(token)
-      Alert.alert('Password Updated', 'Your password has been changed and other devices have been signed out.', [
-        { text: 'OK', onPress: () => router.back() },
-      ])
+      await user.updatePassword({
+        ...(hasPassword ? { currentPassword } : {}),
+        newPassword,
+        signOutOfOtherSessions: true,
+      })
+      Alert.alert(
+        hasPassword ? 'Password Updated' : 'Password Set',
+        'Your password has been saved and other devices have been signed out.',
+        [{ text: 'OK', onPress: () => router.back() }],
+      )
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setError('currentPassword', { message: 'Current password is incorrect' })
-        return
-      }
-      Alert.alert('Error', errorMessage(err, 'Failed to update password. Please try again.'))
+      Alert.alert('Error', clerkErrorMessage(err, 'Failed to update password. Please try again.'))
     } finally {
       setSaving(false)
     }
   }
 
   const fields: { name: keyof FormData; label: string; placeholder: string }[] = [
-    { name: 'currentPassword', label: 'Current Password', placeholder: '••••••••' },
+    ...(hasPassword ? [{ name: 'currentPassword' as const, label: 'Current Password', placeholder: '••••••••' }] : []),
     { name: 'newPassword', label: 'New Password', placeholder: '••••••••' },
     { name: 'confirmPassword', label: 'Confirm New Password', placeholder: '••••••••' },
   ]
@@ -62,10 +70,15 @@ export default function ChangePasswordScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} className="text-fg" />
         </TouchableOpacity>
-        <Text className="text-fg text-xl font-bold">Change Password</Text>
+        <Text className="text-fg text-xl font-bold">{hasPassword ? 'Change Password' : 'Set a Password'}</Text>
       </View>
 
       <View className="flex-1 px-5 pt-6">
+        {!hasPassword && (
+          <Text className="text-dark-400 text-sm mb-5">
+            You sign in with Google. Set a password to also sign in with your email.
+          </Text>
+        )}
         <View className="gap-5">
           {fields.map(({ name, label, placeholder }) => (
             <Controller
@@ -80,6 +93,7 @@ export default function ChangePasswordScreen() {
                     placeholder={placeholder}
                     placeholderTextColor="#686868"
                     secureTextEntry
+                    autoCapitalize="none"
                     value={value}
                     onChangeText={onChange}
                   />
@@ -92,9 +106,9 @@ export default function ChangePasswordScreen() {
           <TouchableOpacity
             className="bg-primary-500 py-4 rounded-2xl items-center mt-2"
             onPress={handleSubmit(onSubmit)}
-            disabled={saving}
+            disabled={saving || !user}
           >
-            {saving ? <ActivityIndicator color="white" /> : <Text className="text-white text-lg font-semibold">Update Password</Text>}
+            {saving ? <ActivityIndicator color="white" /> : <Text className="text-white text-lg font-semibold">{hasPassword ? 'Update Password' : 'Set Password'}</Text>}
           </TouchableOpacity>
         </View>
       </View>

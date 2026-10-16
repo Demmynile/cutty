@@ -1,4 +1,5 @@
 import { sanityClient, formatPrice } from '@/lib/sanity'
+import { requireAdmin } from '@/lib/server/adminAuth'
 import type { LoyaltyTransaction, DiscountCode } from '@cutty/types'
 
 async function getLoyaltyData() {
@@ -23,6 +24,7 @@ const TIER_COLORS: Record<string, string> = {
 }
 
 export default async function LoyaltyPage() {
+  await requireAdmin() // re-checks the admin in the database on every request
   const { transactions, codes, topCustomers } = await getLoyaltyData()
 
   const totalPointsIssued = (transactions as LoyaltyTransaction[]).filter((t) => t.points > 0).reduce((s, t) => s + t.points, 0)

@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { create } from 'zustand'
 import type { PreferredCurrency } from '@cutty/types'
 import { api } from './api'
@@ -36,7 +37,8 @@ export function formatKobo(kobo: number, currency: PreferredCurrency, rates: Rec
 export function useFormatPrice() {
   const currency = useAuthStore((s) => s.customer?.preferredCurrency) || 'NGN'
   const rates = useRatesStore((s) => s.rates)
-  return (kobo: number) => formatKobo(kobo, currency, rates)
+  // Stable between renders, so memoized list rows don't re-render needlessly.
+  return useCallback((kobo: number) => formatKobo(kobo, currency, rates), [currency, rates])
 }
 
 export function usePreferredCurrency(): PreferredCurrency {

@@ -17,7 +17,7 @@ const schema = z.object({
 // discount when the purchase is actually made.
 export const POST = route(async (req) => {
   const { customerId } = await requireCustomer(req)
-  rateLimit(`discount:${customerId}`, 20, 10 * 60 * 1000)
+  await rateLimit(`discount:${customerId}`, 20, 10 * 60 * 1000)
   const { code, context, subtotal } = await parseBody(req, schema)
   const { doc } = await loadDiscount(code, context, subtotal, customerId)
   return NextResponse.json({

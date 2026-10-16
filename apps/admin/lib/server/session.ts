@@ -1,11 +1,11 @@
 import { SignJWT, jwtVerify } from 'jose'
 
-// Edge-safe (used by middleware.ts as well as route handlers): jose + Web
-// Crypto only, no node: imports.
+// Admin dashboard sessions only. Customers and stylists sign in with Clerk
+// (lib/server/clerk.ts). Edge-safe (used by middleware.ts as well as route
+// handlers): jose + Web Crypto only, no node: imports.
 
 export const ADMIN_COOKIE = 'cutty_admin'
 export const ADMIN_SESSION_SECONDS = 8 * 60 * 60
-export const CUSTOMER_SESSION_SECONDS = 7 * 24 * 60 * 60
 
 const ISSUER = 'cutty'
 
@@ -19,8 +19,8 @@ function secret() {
 
 export type SessionClaims = {
   sub: string
-  typ: 'customer' | 'admin'
-  // Bumped on password change / account deletion / forced logout, which
+  typ: 'admin'
+  // Bumped on password change / deactivation / forced logout, which
   // invalidates every token issued before it.
   ver: number
   role?: 'owner' | 'staff'

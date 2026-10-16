@@ -12,6 +12,15 @@ export function urlFor(source: SanityImage) {
   return builder.image(source)
 }
 
+/**
+ * A right-sized, compressed image URL: the CDN serves WebP/AVIF where the
+ * device supports it, at the requested pixel width (pass ~2x the layout width).
+ */
+export function imageUri(source: SanityImage, width: number, height?: number) {
+  const b = builder.image(source).width(width).auto('format').quality(75)
+  return (height ? b.height(height).fit('crop') : b).url()
+}
+
 export function formatPrice(kobo: number): string {
   return `₦${(kobo / 100).toLocaleString('en-NG')}`
 }

@@ -68,6 +68,16 @@ export const order = defineType({
     }),
     defineField({ name: 'notes', title: 'Notes', type: 'text' }),
     defineField({ name: 'createdAt', title: 'Created At', type: 'datetime' }),
+    defineField({
+      name: 'seller',
+      title: 'Seller (stylist)',
+      type: 'reference',
+      to: [{ type: 'stylist' }],
+      description: "Empty when Cutty sells the products. One order never mixes sellers.",
+    }),
+    defineField({ name: 'splitSubaccount', title: 'Paystack Subaccount Used', type: 'string', readOnly: true }),
+    defineField({ name: 'paidAt', title: 'Paid At', type: 'datetime' }),
+    defineField({ name: 'sellerConfirmedAt', title: 'Seller Confirmed At', type: 'datetime' }),
   ],
   preview: {
     select: { title: 'orderNumber', subtitle: 'customer.fullName', status: 'status' },

@@ -16,15 +16,18 @@ import Animated, {
 import { useAuthStore } from '@/store/authStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
 import { DARK_THEME_VARS } from '@/lib/theme'
+import { FEATURES } from '@/lib/features'
 
 interface Slide {
   image: ImageSourcePropType
   eyebrow: string
   title: string
   subtitle: string
+  /** Shop slide: skipped while FEATURES.shop is off. */
+  shop?: boolean
 }
 
-const SLIDES: Slide[] = [
+const ALL_SLIDES: Slide[] = [
   {
     image: require('../assets/onboarding/01.jpg'),
     eyebrow: 'WELCOME TO CUTTY',
@@ -57,6 +60,7 @@ const SLIDES: Slide[] = [
   },
   {
     image: require('../assets/onboarding/04.jpg'),
+    shop: true,
     eyebrow: 'GROOMING',
     title: 'Look the part at home',
     subtitle: 'Shop the same premium products your stylist uses.',
@@ -68,6 +72,8 @@ const SLIDES: Slide[] = [
     subtitle: 'Preview any hairstyle on your own photo, then book it.',
   },
 ]
+
+const SLIDES = ALL_SLIDES.filter((s) => FEATURES.shop || !s.shop)
 
 function SlideItem({ slide, index, scrollX, width }: { slide: Slide; index: number; scrollX: SharedValue<number>; width: number }) {
   const insets = useSafeAreaInsets()

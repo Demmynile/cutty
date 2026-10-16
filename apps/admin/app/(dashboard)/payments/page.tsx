@@ -1,4 +1,5 @@
 import { sanityClient, formatPrice } from '@/lib/sanity'
+import { requireAdmin } from '@/lib/server/adminAuth'
 import type { WalletTransaction } from '@cutty/types'
 
 async function getPaymentsData() {
@@ -15,6 +16,7 @@ async function getPaymentsData() {
 }
 
 export default async function PaymentsPage() {
+  await requireAdmin() // re-checks the admin in the database on every request
   const { walletTxns, totalWalletBalance, orderRevenue, bookingRevenue } = await getPaymentsData()
 
   const totalTopups = (walletTxns as WalletTransaction[]).filter((t) => t.category === 'topup').reduce((s, t) => s + t.amount, 0)

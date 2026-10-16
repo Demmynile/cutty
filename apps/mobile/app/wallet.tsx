@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Alert, Modal } from 'react-native'
 import { router } from 'expo-router'
 import { formatPrice } from '@/lib/sanity'
 import { api, errorMessage } from '@/lib/api'
+import { invalidate, keys, useWalletTransactions } from '@/lib/data'
 import { payWithPaystack } from '@/lib/payments'
 import { useAuthStore } from '@/store/authStore'
-import type { Customer, WalletTransaction } from '@cutty/types'
+import type { Customer } from '@cutty/types'
 import { Ionicons } from '@expo/vector-icons'
 
 const TOPUP_AMOUNTS = [500000, 1000000, 2000000, 5000000]
 
 export default function WalletScreen() {
   const { customer, updateCustomer } = useAuthStore()
-  const [transactions, setTransactions] = useState<WalletTransaction[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: transactions = [], isLoading: loading } = useWalletTransactions()
   const [topupModal, setTopupModal] = useState(false)
   const [customAmount, setCustomAmount] = useState('')
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
@@ -22,15 +22,7 @@ export default function WalletScreen() {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
 
-  useEffect(() => {
-    if (!customer) return
-    api<WalletTransaction[]>('GET', '/api/v1/wallet/transactions')
-      .then(setTransactions).catch(() => {}).finally(() => setLoading(false))
-  }, [])
-
-  function refreshTransactions() {
-    api<WalletTransaction[]>('GET', '/api/v1/wallet/transactions').then(setTransactions).catch(() => {})
-  }
+  const refreshTransactions = () => invalidate(keys.wallet)
 
   async function processTopup() {
     const amount = selectedAmount || Math.round(parseFloat(customAmount) * 100)

@@ -27,3 +27,7 @@ export function analyzePhoto(body: AIAnalyzeRequest) {
 export function tryOnStyle(body: AITryOnRequest) {
   return post<AITryOnRequest, AITryOnResponse>('/api/ai/tryon', body)
 }
+
+export function aiSearch(query: string) {
+  return post<{ query: string }, import('@cutty/types').AISearchResult>('/api/ai/search', { query })
+}

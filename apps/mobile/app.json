@@ -39,8 +39,15 @@
           "cameraPermission": "Cutty uses your camera to capture a photo for AI style recommendations."
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Cutty uses your location to show barbers and stylists near you."
+        }
+      ],
       "expo-sharing",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@clerk/expo"
     ],
     "experiments": {
       "typedRoutes": true

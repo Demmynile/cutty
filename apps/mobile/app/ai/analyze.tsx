@@ -151,7 +151,7 @@ export default function AnalyzeScreen() {
                 </View>
                 {rec.matchedServiceCategory && (
                   <TouchableOpacity className="mt-1 bg-primary-500/15 py-2.5 rounded-xl items-center" onPress={() => router.push('/booking/new')}>
-                    <Text className="text-primary-400 font-semibold text-sm capitalize">Book a {rec.matchedServiceCategory} appointment</Text>
+                    <Text className="text-primary-400 font-semibold text-sm">Find a stylist for this</Text>
                   </TouchableOpacity>
                 )}
               </View>
