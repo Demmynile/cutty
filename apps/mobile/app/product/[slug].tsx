@@ -1,26 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Image } from 'expo-image'
-import { sanityClient, urlFor, formatPrice } from '@/lib/sanity'
-import { PRODUCT_BY_SLUG } from '@/lib/queries'
-import type { Product } from '@cutty/types'
+import { imageUri } from '@/lib/sanity'
+import { useProduct } from '@/lib/data'
 import { useCartStore } from '@/store/cartStore'
+import { addToCart } from '@/lib/cart'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice } from '@/lib/currency'
+import { withShop } from '@/lib/features'
 
 const { width } = Dimensions.get('window')
 
-export default function ProductDetailScreen() {
+function ProductDetailScreen() {
+  const formatPrice = useFormatPrice()
   const { slug } = useLocalSearchParams<{ slug: string }>()
-  const [product, setProduct] = useState<Product | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data: product, isLoading: loading } = useProduct(slug)
   const [activeImage, setActiveImage] = useState(0)
   const [quantity, setQuantity] = useState(1)
-  const { addItem, items } = useCartStore()
-
-  useEffect(() => {
-    sanityClient.fetch(PRODUCT_BY_SLUG, { slug }).then(setProduct).finally(() => setLoading(false))
-  }, [slug])
+  const { items } = useCartStore()
 
   if (loading) return <View className="flex-1 bg-dark-900 items-center justify-center"><ActivityIndicator color="#D4891A" size="large" /></View>
   if (!product) return <View className="flex-1 bg-dark-900 items-center justify-center"><Text className="text-dark-400">Product not found</Text></View>
@@ -29,9 +27,8 @@ export default function ProductDetailScreen() {
   const cartQty = inCart?.quantity || 0
   const discount = product.compareAtPrice ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100) : 0
 
-  function handleAddToCart() {
-    addItem(product!, quantity)
-    router.push('/cart')
+  async function handleAddToCart() {
+    if (await addToCart(product!, quantity)) router.push('/cart')
   }
 
   return (
@@ -48,10 +45,10 @@ export default function ProductDetailScreen() {
             {(product.images?.length ? product.images : [null]).map((img, i) => (
               <View key={i} style={{ width }}>
                 {img ? (
-                  <Image source={{ uri: urlFor(img).width(width).height(400).url() }} style={{ width, height: 400 }} contentFit="cover" />
+                  <Image source={{ uri: imageUri(img, Math.round(width * 2), 800) }} style={{ width, height: 400 }} contentFit="cover" />
                 ) : (
                   <View style={{ width, height: 400 }} className="bg-dark-800 items-center justify-center">
-                    <Ionicons name="image-outline" size={64} color="#484848" />
+                    <Ionicons name="image-outline" size={64} className="text-dark-600" />
                   </View>
                 )}
               </View>
@@ -81,7 +78,10 @@ export default function ProductDetailScreen() {
           {/* Product Info */}
           <View>
             {product.category && <Text className="text-primary-400 text-sm font-medium">{product.category.name}</Text>}
-            <Text className="text-white text-2xl font-bold mt-1">{product.name}</Text>
+            {product.seller && (
+              <Text className="text-dark-300 text-sm mt-1">Sold by <Text className="text-primary-400 font-semibold">{product.seller.name}</Text></Text>
+            )}
+            <Text className="text-fg text-2xl font-bold mt-1">{product.name}</Text>
             {product.tags && <Text className="text-dark-400 text-sm mt-1">{product.tags.join(' · ')}</Text>}
           </View>
 
@@ -107,14 +107,14 @@ export default function ProductDetailScreen() {
                 className="w-9 h-9 bg-dark-700 rounded-full items-center justify-center"
                 onPress={() => setQuantity(Math.max(1, quantity - 1))}
               >
-                <Ionicons name="remove" size={16} color="white" />
+                <Ionicons name="remove" size={16} className="text-fg" />
               </TouchableOpacity>
-              <Text className="text-white text-lg font-bold w-8 text-center">{quantity}</Text>
+              <Text className="text-fg text-lg font-bold w-8 text-center">{quantity}</Text>
               <TouchableOpacity
                 className="w-9 h-9 bg-dark-700 rounded-full items-center justify-center"
                 onPress={() => setQuantity(Math.min(product.stock, quantity + 1))}
               >
-                <Ionicons name="add" size={16} color="white" />
+                <Ionicons name="add" size={16} className="text-fg" />
               </TouchableOpacity>
             </View>
             <Text className="text-dark-400 text-sm">{product.stock} in stock</Text>
@@ -144,3 +144,6 @@ export default function ProductDetailScreen() {
     </View>
   )
 }
+
+// Hidden until the shop launches (v2.0).
+export default withShop(ProductDetailScreen)

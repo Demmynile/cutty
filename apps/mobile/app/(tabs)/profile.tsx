@@ -2,13 +2,17 @@ import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { router } from 'expo-router'
 import { Image } from 'expo-image'
 import { useAuthStore } from '@/store/authStore'
-import { urlFor, formatPrice } from '@/lib/sanity'
+import { imageUri } from '@/lib/sanity'
 import { TIER_COLORS } from '@/constants'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice } from '@/lib/currency'
+import { FEATURES } from '@/lib/features'
 
 const MENU_ITEMS = [
   { icon: 'calendar-outline', label: 'My Bookings', route: '/(tabs)/bookings' },
-  { icon: 'bag-outline', label: 'My Orders', route: '/orders' },
+  { icon: 'chatbubbles-outline', label: 'Messages', route: '/messages' },
+  { icon: 'people-outline', label: 'Find a Stylist', route: '/stylists' },
+  ...(FEATURES.shop ? [{ icon: 'bag-outline', label: 'My Orders', route: '/orders' }] : []),
   { icon: 'wallet-outline', label: 'Wallet', route: '/wallet' },
   { icon: 'star-outline', label: 'Loyalty Rewards', route: '/(tabs)/loyalty' },
   { icon: 'settings-outline', label: 'Settings', route: '/settings' },
@@ -16,6 +20,7 @@ const MENU_ITEMS = [
 ] as const
 
 export default function ProfileScreen() {
+  const formatPrice = useFormatPrice()
   const { customer, signOut } = useAuthStore()
   const tierColor = TIER_COLORS[customer?.tier || 'bronze']
 
@@ -30,12 +35,12 @@ export default function ProfileScreen() {
     <ScrollView className="flex-1 bg-dark-900" contentContainerStyle={{ paddingBottom: 100 }}>
       {/* Header */}
       <View className="pt-14 pb-6 px-5 bg-dark-800">
-        <Text className="text-white text-2xl font-bold mb-5">Profile</Text>
+        <Text className="text-fg text-2xl font-bold mb-5">Profile</Text>
 
         <View className="flex-row items-center gap-4">
           <View className="w-18 h-18 rounded-full bg-dark-700 items-center justify-center overflow-hidden" style={{ width: 72, height: 72 }}>
             {customer?.avatar ? (
-              <Image source={{ uri: urlFor(customer.avatar).width(144).url() }} style={{ width: 72, height: 72 }} contentFit="cover" />
+              <Image source={{ uri: imageUri(customer.avatar, 144, 144) }} style={{ width: 72, height: 72 }} contentFit="cover" />
             ) : (
               <Text className="text-primary-400 text-3xl font-bold">
                 {customer?.fullName?.charAt(0)?.toUpperCase()}
@@ -43,7 +48,7 @@ export default function ProfileScreen() {
             )}
           </View>
           <View className="flex-1">
-            <Text className="text-white text-xl font-bold">{customer?.fullName}</Text>
+            <Text className="text-fg text-xl font-bold">{customer?.fullName}</Text>
             <Text className="text-dark-400 text-sm">{customer?.email}</Text>
             <View className="flex-row items-center gap-2 mt-1">
               <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: tierColor + '33' }}>
@@ -51,7 +56,7 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
-          <TouchableOpacity className="p-2">
+          <TouchableOpacity className="p-2" onPress={() => router.push('/edit-profile')}>
             <Ionicons name="pencil-outline" size={20} color="#D4891A" />
           </TouchableOpacity>
         </View>
@@ -66,7 +71,7 @@ export default function ProfileScreen() {
             { label: 'Balance', value: formatPrice(customer?.walletBalance || 0) },
           ].map(({ label, value }) => (
             <View key={label} className="items-center">
-              <Text className="text-white text-xl font-bold">{value}</Text>
+              <Text className="text-fg text-xl font-bold">{value}</Text>
               <Text className="text-dark-400 text-xs mt-1">{label}</Text>
             </View>
           ))}
@@ -102,8 +107,8 @@ export default function ProfileScreen() {
             <View className="w-9 h-9 bg-dark-700 rounded-xl items-center justify-center">
               <Ionicons name={icon as any} size={18} color="#D4891A" />
             </View>
-            <Text className="text-white text-base flex-1">{label}</Text>
-            <Ionicons name="chevron-forward" size={16} color="#484848" />
+            <Text className="text-fg text-base flex-1">{label}</Text>
+            <Ionicons name="chevron-forward" size={16} className="text-dark-600" />
           </TouchableOpacity>
         ))}
       </View>

@@ -4,11 +4,15 @@ import { router } from 'expo-router'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { writeClient, formatPrice } from '@/lib/sanity'
+import type { Customer } from '@cutty/types'
+import { api, errorMessage } from '@/lib/api'
+import { payWithPaystack } from '@/lib/payments'
+import { invalidate, keys } from '@/lib/data'
 import { useCartStore } from '@/store/cartStore'
 import { useAuthStore } from '@/store/authStore'
-import { generateOrderNumber } from '@/lib/auth'
 import { Ionicons } from '@expo/vector-icons'
+import { useFormatPrice, usePreferredCurrency } from '@/lib/currency'
+import { withShop } from '@/lib/features'
 
 const schema = z.object({
   fullName: z.string().min(2),
@@ -21,10 +25,15 @@ type FormData = z.infer<typeof schema>
 
 type PayMethod = 'wallet' | 'card' | 'transfer'
 
-export default function CheckoutScreen() {
-  const [payMethod, setPayMethod] = useState<PayMethod>('wallet')
+function CheckoutScreen() {
+  const formatPrice = useFormatPrice()
+  const currency = usePreferredCurrency()
+  const { items, subtotal, discount, total, totalPoints, discountCode, clearCart, sellerId, sellerName } = useCartStore()
+  // Stylist shops are paid by card (split through Paystack) or by transfer
+  // straight to the stylist; the Cutty wallet only pays for Cutty's own shop.
+  const stylistShop = !!sellerId()
+  const [payMethod, setPayMethod] = useState<PayMethod>(stylistShop ? 'card' : 'wallet')
   const [submitting, setSubmitting] = useState(false)
-  const { items, subtotal, discount, total, totalPoints, discountCode, clearCart } = useCartStore()
   const { customer, updateCustomer } = useAuthStore()
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -44,64 +53,52 @@ export default function CheckoutScreen() {
 
     setSubmitting(true)
     try {
-      const orderNumber = await generateOrderNumber()
-      const pointsEarned = totalPoints()
+      // The server prices the order from current product data and applies the
+      // discount; wallet orders are debited there, card/transfer go to Paystack.
+      const order = await api<{ _id: string; orderNumber: string; status: string; authorizationUrl?: string; reference?: string; awaitingSeller?: boolean }>(
+        'POST', '/api/v1/orders', {
+          items: items.map((i) => ({ productId: i.product._id, quantity: i.quantity })),
+          shippingAddress: address,
+          paymentMethod: payMethod,
+          discountCode: discountCode?.code,
+        },
+      )
 
-      const order = await writeClient.create({
-        _type: 'order',
-        orderNumber,
-        customer: { _type: 'reference', _ref: customer._id },
-        items: items.map((i) => ({
-          _key: i.product._id,
-          product: { _type: 'reference', _ref: i.product._id },
-          quantity: i.quantity,
-          priceAtOrder: i.product.price,
-          productName: i.product.name,
-        })),
-        subtotal: subtotal(),
-        discountAmount: discount(),
-        shippingFee: 0,
-        totalAmount: total(),
-        pointsEarned,
-        paymentMethod: payMethod,
-        status: 'paid',
-        shippingAddress: address,
-        ...(discountCode ? { discountCode: { _type: 'reference', _ref: discountCode._id } } : {}),
-        createdAt: new Date().toISOString(),
-      })
+      invalidate(keys.orders, keys.products)
 
-      if (payMethod === 'wallet') {
-        const newBalance = customer.walletBalance - total()
-        await writeClient.patch(customer._id).set({ walletBalance: newBalance }).commit()
-        await writeClient.create({
-          _type: 'walletTransaction',
-          customer: { _type: 'reference', _ref: customer._id },
-          type: 'debit', category: 'order_payment',
-          amount: total(), balanceAfter: newBalance,
-          description: `Order #${orderNumber}`,
-          referenceId: order._id, status: 'completed',
-          createdAt: new Date().toISOString(),
-        })
-        updateCustomer({ walletBalance: newBalance })
+      if (order.awaitingSeller) {
+        // Read the seller before clearing the cart, which forgets it.
+        const seller = sellerName()
+        clearCart()
+        Alert.alert(
+          'Order sent to the stylist',
+          `Order #${order.orderNumber} is waiting for ${seller}. Message them for their bank details; they confirm once your transfer arrives.`,
+          [{ text: 'View Orders', onPress: () => router.replace('/orders') }],
+        )
+        return
+      }
+      let paid = order.status === 'paid'
+      if (!paid && order.authorizationUrl && order.reference) {
+        const outcome = await payWithPaystack(order.authorizationUrl, order.reference)
+        paid = outcome === 'completed'
+        if (outcome === 'failed') {
+          Alert.alert('Payment not completed', `Order #${order.orderNumber} is saved but unpaid. Your card was not charged.`, [
+            { text: 'View Orders', onPress: () => router.replace('/orders') },
+          ])
+          return
+        }
       }
 
-      const newPoints = customer.loyaltyPoints + pointsEarned
-      await writeClient.patch(customer._id).set({ loyaltyPoints: newPoints }).commit()
-      await writeClient.create({
-        _type: 'loyaltyTransaction',
-        customer: { _type: 'reference', _ref: customer._id },
-        type: 'earn', points: pointsEarned, balanceAfter: newPoints,
-        description: `Points from Order #${orderNumber}`, source: 'order',
-        referenceId: order._id, createdAt: new Date().toISOString(),
-      })
-      updateCustomer({ loyaltyPoints: newPoints })
-
+      const me = await api<Customer>('GET', '/api/v1/me')
+      updateCustomer({ walletBalance: me.walletBalance, loyaltyPoints: me.loyaltyPoints })
       clearCart()
-      Alert.alert('Order Placed! 🎉', `Order #${orderNumber} placed successfully.`, [
-        { text: 'View Orders', onPress: () => router.replace('/orders') },
-      ])
-    } catch {
-      Alert.alert('Error', 'Failed to place order. Please try again.')
+      Alert.alert(
+        paid ? 'Order Placed! 🎉' : 'Order received',
+        paid ? `Order #${order.orderNumber} placed successfully.` : `Order #${order.orderNumber} will be confirmed once Paystack confirms your payment.`,
+        [{ text: 'View Orders', onPress: () => router.replace('/orders') }],
+      )
+    } catch (err) {
+      Alert.alert('Error', errorMessage(err, 'Failed to place order. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -110,14 +107,14 @@ export default function CheckoutScreen() {
   return (
     <View className="flex-1 bg-dark-900">
       <View className="px-5 pt-14 pb-4 bg-dark-800 flex-row items-center gap-4">
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color="white" /></TouchableOpacity>
-        <Text className="text-white text-xl font-bold">Checkout</Text>
+        <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} className="text-fg" /></TouchableOpacity>
+        <Text className="text-fg text-xl font-bold">Checkout</Text>
       </View>
 
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, gap: 16 }}>
         {/* Shipping Address */}
         <View className="bg-dark-800 rounded-2xl p-5 gap-4">
-          <Text className="text-white font-bold text-lg">Delivery Address</Text>
+          <Text className="text-fg font-bold text-lg">Delivery Address</Text>
           {[
             { name: 'fullName' as const, label: 'Full Name', placeholder: 'Recipient name' },
             { name: 'address' as const, label: 'Street Address', placeholder: '12 Lagos Road' },
@@ -129,7 +126,7 @@ export default function CheckoutScreen() {
               <View>
                 <Text className="text-dark-300 text-sm mb-1">{label}</Text>
                 <TextInput
-                  className="bg-dark-700 text-white px-4 py-3 rounded-xl border border-dark-600"
+                  className="bg-dark-700 text-fg px-4 py-3 rounded-xl border border-dark-600"
                   placeholder={placeholder} placeholderTextColor="#686868"
                   keyboardType={keyboard as any} value={value} onChangeText={onChange}
                 />
@@ -141,11 +138,14 @@ export default function CheckoutScreen() {
 
         {/* Payment Method */}
         <View className="bg-dark-800 rounded-2xl p-5 gap-3">
-          <Text className="text-white font-bold text-lg">Payment Method</Text>
+          <Text className="text-fg font-bold text-lg">Payment Method</Text>
+          {stylistShop && <Text className="text-dark-400 text-xs">Sold by {sellerName()}</Text>}
           {[
-            { id: 'wallet' as PayMethod, label: 'Wallet', icon: 'wallet', sub: `Balance: ${formatPrice(customer?.walletBalance || 0)}` },
+            ...(stylistShop ? [] : [{ id: 'wallet' as PayMethod, label: 'Wallet', icon: 'wallet', sub: `Balance: ${formatPrice(customer?.walletBalance || 0)}` }]),
             { id: 'card' as PayMethod, label: 'Card Payment', icon: 'card', sub: 'Pay with Paystack' },
-            { id: 'transfer' as PayMethod, label: 'Bank Transfer', icon: 'swap-horizontal', sub: 'Manual transfer' },
+            stylistShop
+              ? { id: 'transfer' as PayMethod, label: 'Bank Transfer to Stylist', icon: 'swap-horizontal', sub: 'Pay the stylist directly; they confirm your order' }
+              : { id: 'transfer' as PayMethod, label: 'Bank Transfer', icon: 'swap-horizontal', sub: 'Manual transfer' },
           ].map(({ id, label, icon, sub }) => (
             <TouchableOpacity
               key={id}
@@ -154,7 +154,7 @@ export default function CheckoutScreen() {
             >
               <Ionicons name={icon as any} size={24} color={payMethod === id ? '#D4891A' : '#888'} />
               <View className="flex-1">
-                <Text className={`font-medium ${payMethod === id ? 'text-primary-400' : 'text-white'}`}>{label}</Text>
+                <Text className={`font-medium ${payMethod === id ? 'text-primary-400' : 'text-fg'}`}>{label}</Text>
                 <Text className="text-dark-400 text-xs">{sub}</Text>
               </View>
               <View className={`w-5 h-5 rounded-full border-2 ${payMethod === id ? 'bg-primary-500 border-primary-500' : 'border-dark-400'}`} />
@@ -164,11 +164,11 @@ export default function CheckoutScreen() {
 
         {/* Order Summary */}
         <View className="bg-dark-800 rounded-2xl p-4 gap-3">
-          <Text className="text-white font-bold">Order Summary</Text>
+          <Text className="text-fg font-bold">Order Summary</Text>
           {items.map((i) => (
             <View key={i.product._id} className="flex-row justify-between">
               <Text className="text-dark-400" numberOfLines={1} style={{ flex: 1 }}>{i.product.name} ×{i.quantity}</Text>
-              <Text className="text-white ml-4">{formatPrice(i.product.price * i.quantity)}</Text>
+              <Text className="text-fg ml-4">{formatPrice(i.product.price * i.quantity)}</Text>
             </View>
           ))}
           {discount() > 0 && (
@@ -178,9 +178,14 @@ export default function CheckoutScreen() {
             </View>
           )}
           <View className="flex-row justify-between border-t border-dark-700 pt-3">
-            <Text className="text-white font-bold">Total</Text>
+            <Text className="text-fg font-bold">Total</Text>
             <Text className="text-primary-400 font-bold">{formatPrice(total())}</Text>
           </View>
+          {currency !== 'NGN' && (
+            <Text className="text-dark-400 text-xs text-right">
+              Charged in Naira: ₦{(total() / 100).toLocaleString('en-NG')}
+            </Text>
+          )}
           <Text className="text-primary-400 text-xs text-right">+{totalPoints()} loyalty points</Text>
         </View>
       </ScrollView>
@@ -199,3 +204,6 @@ export default function CheckoutScreen() {
     </View>
   )
 }
+
+// Hidden until the shop launches (v2.0).
+export default withShop(CheckoutScreen)

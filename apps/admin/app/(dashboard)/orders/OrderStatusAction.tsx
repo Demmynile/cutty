@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { writeClient } from '@/lib/sanity'
+import { advanceOrderStatus } from '../actions'
 import type { OrderStatus } from '@cutty/types'
 import { useRouter } from 'next/navigation'
 
@@ -28,8 +28,9 @@ export function OrderStatusAction({ orderId, currentStatus }: { orderId: string;
 
   async function advance() {
     setLoading(true)
-    await writeClient.patch(orderId).set({ status: next }).commit()
+    const result = await advanceOrderStatus(orderId)
     setLoading(false)
+    if (!result.ok) alert(result.error)
     router.refresh()
   }
 

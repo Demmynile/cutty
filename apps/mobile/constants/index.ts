@@ -14,6 +14,23 @@ export const COLORS = {
   info: '#3B82F6',
 } as const
 
+// Booking and order statuses share one palette across the app.
+export const STATUS_COLORS: Record<string, string> = {
+  pending: '#F59E0B',
+  confirmed: '#3B82F6',
+  in_progress: '#8B5CF6',
+  completed: '#22C55E',
+  cancelled: '#EF4444',
+  no_show: '#6B7280',
+  paid: '#3B82F6',
+  processing: '#8B5CF6',
+  shipped: '#06B6D4',
+  delivered: '#22C55E',
+  refunded: '#6B7280',
+}
+
+export const statusColor = (status: string) => STATUS_COLORS[status] ?? '#888888'
+
 export const TIER_COLORS: Record<string, string> = {
   bronze: '#CD7F32',
   silver: '#C0C0C0',

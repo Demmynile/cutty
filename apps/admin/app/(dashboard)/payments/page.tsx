@@ -1,4 +1,5 @@
 import { sanityClient, formatPrice } from '@/lib/sanity'
+import { requireAdmin } from '@/lib/server/adminAuth'
 import type { WalletTransaction } from '@cutty/types'
 
 async function getPaymentsData() {
@@ -15,6 +16,7 @@ async function getPaymentsData() {
 }
 
 export default async function PaymentsPage() {
+  await requireAdmin() // re-checks the admin in the database on every request
   const { walletTxns, totalWalletBalance, orderRevenue, bookingRevenue } = await getPaymentsData()
 
   const totalTopups = (walletTxns as WalletTransaction[]).filter((t) => t.category === 'topup').reduce((s, t) => s + t.amount, 0)
@@ -50,11 +52,12 @@ export default async function PaymentsPage() {
         ))}
       </div>
 
-      <div className="bg-gray-900 rounded-2xl overflow-hidden">
+      <div className="bg-gray-900 rounded-2xl overflow-hidden hidden md:block">
         <div className="px-6 py-4 border-b border-gray-800">
           <h2 className="text-white font-bold text-lg">Wallet Transactions</h2>
         </div>
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead>
             <tr className="border-b border-gray-800">
               {['Customer', 'Type', 'Category', 'Amount', 'Balance After', 'Reference', 'Status', 'Date'].map((h) => (
@@ -96,7 +99,56 @@ export default async function PaymentsPage() {
             ))}
           </tbody>
         </table>
+        </div>
         {(walletTxns as WalletTransaction[]).length === 0 && <div className="text-center py-16 text-gray-400">No transactions yet</div>}
+      </div>
+
+      {/* Cards (mobile) */}
+      <div className="bg-gray-900 rounded-2xl overflow-hidden md:hidden">
+        <div className="px-4 py-3 border-b border-gray-800">
+          <h2 className="text-white font-bold text-lg">Wallet Transactions</h2>
+        </div>
+        <div className="p-4 space-y-3">
+          {(walletTxns as WalletTransaction[]).map((tx) => (
+            <div key={tx._id} className="bg-gray-800/50 rounded-xl p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-white text-sm">{(tx as any).customer?.fullName}</p>
+                  <p className="text-gray-400 text-xs">{(tx as any).customer?.email}</p>
+                </div>
+                <span className={`font-bold text-sm shrink-0 ${tx.type === 'credit' ? 'text-green-400' : 'text-red-400'}`}>
+                  {tx.type === 'credit' ? '+' : '-'}{formatPrice(tx.amount)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`font-medium ${tx.type === 'credit' ? 'text-green-400' : 'text-red-400'}`}>
+                  {tx.type === 'credit' ? '↓ Credit' : '↑ Debit'}
+                </span>
+                <span className="text-gray-600">·</span>
+                <span className={`capitalize ${categoryColor[tx.category || ''] || 'text-gray-400'}`}>
+                  {tx.category?.replace(/_/g, ' ')}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <div>
+                  <p className="text-gray-500 text-xs">Balance After</p>
+                  <p className="text-white">{formatPrice(tx.balanceAfter)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Reference</p>
+                  <p className="text-gray-400 text-xs font-mono truncate">{tx.paymentReference || tx.description || '—'}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${tx.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                  {tx.status}
+                </span>
+                <p className="text-gray-400 text-xs">{new Date(tx.createdAt).toLocaleString()}</p>
+              </div>
+            </div>
+          ))}
+          {(walletTxns as WalletTransaction[]).length === 0 && <div className="text-center py-16 text-gray-400">No transactions yet</div>}
+        </div>
       </div>
     </div>
   )

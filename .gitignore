@@ -1,1 +1,19 @@
 node_modules
+
+# Secrets — never commit. Copy the matching .env.example and fill it in.
+.env
+.env.*
+!.env.example
+
+# Build output / caches
+.next/
+dist/
+build/
+.expo/
+.turbo/
+*.tsbuildinfo
+.vercel
+
+# OS / editor
+.DS_Store
+*.log

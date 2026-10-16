@@ -10,17 +10,23 @@
     "mobile": "npm run dev --workspace=apps/mobile",
     "admin": "npm run dev --workspace=apps/admin",
     "studio": "npm run dev --workspace=apps/studio",
+    "web": "npm run dev --workspace=apps/web",
     "build:admin": "npm run build --workspace=apps/admin",
     "build:studio": "npm run build --workspace=apps/studio",
-    "postinstall": "node scripts/postinstall.js"
+    "build:web": "npm run build --workspace=apps/web",
+    "postinstall": "node scripts/postinstall.js",
+    "realtime": "npm run dev --workspace=apps/realtime",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "overrides": {
-    "react-native": "0.79.6",
-    "react-native-reanimated": "~3.17.4",
-    "react-native-screens": "~4.11.1",
-    "react-native-safe-area-context": "5.4.0",
-    "react-native-css-interop": {
-      "react-native-reanimated": "~3.17.4"
-    }
+    "react-native": "0.86.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1",
+    "react-native-screens": "~4.26.0",
+    "react-native-safe-area-context": "~5.7.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
   }
 }

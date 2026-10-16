@@ -1,9 +1,12 @@
 import { create } from 'zustand'
-import type { Barber, DiscountCode, Service } from '@cutty/types'
+import type { DiscountCode, StylistPublic } from '@cutty/types'
 
+// Customers book a stylist (found on the map or in search), not a service:
+// the stylist's appointment price and length set the total and the slot.
 interface BookingDraft {
-  services: Service[]
-  barber: Barber | null
+  stylist: StylistPublic | null
+  /** A style from the stylist's list, or null for "not sure yet". */
+  style: string | null
   date: string | null
   time: string | null
   notes: string
@@ -12,10 +15,8 @@ interface BookingDraft {
 
 interface BookingState {
   draft: BookingDraft
-  setServices: (services: Service[]) => void
-  addService: (service: Service) => void
-  removeService: (serviceId: string) => void
-  setBarber: (barber: Barber | null) => void
+  setStylist: (stylist: StylistPublic | null) => void
+  setStyle: (style: string | null) => void
   setDate: (date: string) => void
   setTime: (time: string) => void
   setNotes: (notes: string) => void
@@ -29,8 +30,8 @@ interface BookingState {
 }
 
 const initialDraft: BookingDraft = {
-  services: [],
-  barber: null,
+  stylist: null,
+  style: null,
   date: null,
   time: null,
   notes: '',
@@ -40,32 +41,23 @@ const initialDraft: BookingDraft = {
 export const useBookingStore = create<BookingState>((set, get) => ({
   draft: initialDraft,
 
-  setServices: (services) => set((s) => ({ draft: { ...s.draft, services } })),
-
-  addService: (service) => {
-    const { services } = get().draft
-    if (!services.find((s) => s._id === service._id)) {
-      set((s) => ({ draft: { ...s.draft, services: [...services, service] } }))
-    }
-  },
-
-  removeService: (serviceId) =>
-    set((s) => ({
-      draft: { ...s.draft, services: s.draft.services.filter((sv) => sv._id !== serviceId) },
-    })),
-
-  setBarber: (barber) => set((s) => ({ draft: { ...s.draft, barber } })),
+  // A different stylist has different styles, hours and price: start over.
+  setStylist: (stylist) => set((s) => (s.draft.stylist?._id === stylist?._id
+    ? { draft: { ...s.draft, stylist } }
+    : { draft: { ...initialDraft, stylist } })),
+  setStyle: (style) => set((s) => ({ draft: { ...s.draft, style } })),
   setDate: (date) => set((s) => ({ draft: { ...s.draft, date, time: null } })),
   setTime: (time) => set((s) => ({ draft: { ...s.draft, time } })),
   setNotes: (notes) => set((s) => ({ draft: { ...s.draft, notes } })),
   setDiscountCode: (discountCode) => set((s) => ({ draft: { ...s.draft, discountCode } })),
   resetDraft: () => set({ draft: initialDraft }),
 
-  totalAmount: () => get().draft.services.reduce((sum, s) => sum + s.price, 0),
+  totalAmount: () => get().draft.stylist?.bookingPrice ?? 0,
 
-  totalDuration: () => get().draft.services.reduce((sum, s) => sum + s.duration, 0),
+  totalDuration: () => get().draft.stylist?.bookingDuration ?? 60,
 
-  totalPoints: () => get().draft.services.reduce((sum, s) => sum + s.pointsEarned, 0),
+  // Same rule the server applies: 1 point per ₦100.
+  totalPoints: () => Math.floor(get().totalAmount() / 10_000),
 
   discount: () => {
     const code = get().draft.discountCode

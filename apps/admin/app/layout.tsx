@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Cutty Admin',
-  description: 'Cutty Barbershop Admin Dashboard',
+  description: 'Cutty Barbershop & Salon Admin Dashboard',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

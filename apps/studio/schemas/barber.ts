@@ -2,7 +2,7 @@ import { defineField, defineType } from 'sanity'
 
 export const barber = defineType({
   name: 'barber',
-  title: 'Barber',
+  title: 'Stylist',
   type: 'document',
   fields: [
     defineField({ name: 'name', title: 'Name', type: 'string', validation: (r) => r.required() }),
@@ -30,6 +30,31 @@ export const barber = defineType({
         list: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
       },
     }),
+    defineField({
+      name: 'stylist',
+      title: 'Stylist Account',
+      type: 'reference',
+      to: [{ type: 'stylist' }],
+      readOnly: true,
+      description: 'Set when a Cutty Pro stylist is approved; their profile and availability sync from the app.',
+    }),
+    defineField({
+      name: 'weeklyAvailability',
+      title: 'Weekly Availability',
+      type: 'array',
+      readOnly: true,
+      of: [
+        {
+          type: 'object',
+          fields: [
+            { name: 'day', type: 'string' },
+            { name: 'start', type: 'string' },
+            { name: 'end', type: 'string' },
+          ],
+        },
+      ],
+    }),
+    defineField({ name: 'timeOff', title: 'Days Off', type: 'array', of: [{ type: 'date' }], readOnly: true }),
   ],
   preview: {
     select: { title: 'name', media: 'photo' },

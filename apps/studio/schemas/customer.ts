@@ -1,4 +1,4 @@
-import { defineField, defineType } from 'sanity'
+import { defineArrayMember, defineField, defineType } from 'sanity'
 
 export const customer = defineType({
   name: 'customer',
@@ -10,6 +10,22 @@ export const customer = defineType({
     defineField({ name: 'email', title: 'Email', type: 'string', validation: (r) => r.required().email() }),
     defineField({ name: 'phone', title: 'Phone Number', type: 'string' }),
     defineField({ name: 'avatar', title: 'Avatar', type: 'image', options: { hotspot: true } }),
+    defineField({
+      name: 'clerkUserId',
+      title: 'Clerk User ID',
+      type: 'string',
+      readOnly: true,
+      description: 'Links this record to the Clerk sign-in (email or Google). Set by the admin API server.',
+    }),
+    defineField({
+      name: 'password',
+      title: 'Legacy Password Hash',
+      type: 'string',
+      hidden: true,
+      readOnly: true,
+      description: 'Pre-Clerk password hash. Removed when the account is linked to Clerk.',
+    }),
+    defineField({ name: 'sessionVersion', type: 'number', hidden: true, readOnly: true, description: 'Pre-Clerk session counter. No longer used.' }),
     defineField({ name: 'walletBalance', title: 'Wallet Balance (kobo)', type: 'number', initialValue: 0 }),
     defineField({ name: 'loyaltyPoints', title: 'Loyalty Points', type: 'number', initialValue: 0 }),
     defineField({ name: 'totalVisits', title: 'Total Visits', type: 'number', initialValue: 0 }),
@@ -20,7 +36,82 @@ export const customer = defineType({
       options: { list: ['bronze', 'silver', 'gold', 'platinum'] },
       initialValue: 'bronze',
     }),
+    defineField({
+      name: 'paymentMethods',
+      title: 'Saved Payment Methods',
+      type: 'array',
+      of: [
+        defineArrayMember({
+          type: 'object',
+          name: 'paymentMethod',
+          fields: [
+            defineField({
+              name: 'brand',
+              title: 'Card Brand',
+              type: 'string',
+              options: { list: ['visa', 'mastercard', 'verve', 'other'] },
+            }),
+            defineField({
+              name: 'last4',
+              title: 'Last 4 Digits',
+              type: 'string',
+              validation: (r) => r.length(4),
+            }),
+            defineField({ name: 'expiryMonth', title: 'Expiry Month', type: 'number' }),
+            defineField({ name: 'expiryYear', title: 'Expiry Year', type: 'number' }),
+            defineField({ name: 'holderName', title: 'Cardholder Name', type: 'string' }),
+            defineField({ name: 'isDefault', title: 'Default Method', type: 'boolean', initialValue: false }),
+          ],
+          preview: {
+            select: { brand: 'brand', last4: 'last4' },
+            prepare: ({ brand, last4 }: { brand?: string; last4?: string }) => ({
+              title: `${brand ? brand.toUpperCase() : 'Card'} •••• ${last4 || '----'}`,
+            }),
+          },
+        }),
+      ],
+    }),
+    defineField({
+      name: 'preferredLanguage',
+      title: 'Preferred Language',
+      type: 'string',
+      options: { list: ['en', 'fr', 'yo', 'ha', 'ig'] },
+      initialValue: 'en',
+    }),
+    defineField({
+      name: 'preferredCurrency',
+      title: 'Preferred Currency',
+      type: 'string',
+      options: { list: ['NGN', 'USD', 'GBP'] },
+      initialValue: 'NGN',
+    }),
+    defineField({
+      name: 'notificationPreferences',
+      title: 'Notification Preferences',
+      type: 'object',
+      fields: [
+        defineField({ name: 'push', title: 'Push', type: 'boolean', initialValue: true }),
+        defineField({ name: 'email', title: 'Email', type: 'boolean', initialValue: true }),
+        defineField({ name: 'sms', title: 'SMS', type: 'boolean', initialValue: false }),
+        defineField({ name: 'promos', title: 'Promotions & Offers', type: 'boolean', initialValue: true }),
+      ],
+    }),
     defineField({ name: 'isActive', title: 'Active', type: 'boolean', initialValue: true }),
+    defineField({
+      name: 'deletedAt',
+      title: 'Deleted At',
+      type: 'datetime',
+      readOnly: true,
+      description: 'Set when the customer deletes their account from the app. Personal data is scrubbed; bookings and orders are kept for records.',
+    }),
+    defineField({
+      name: 'latestSearch',
+      title: 'Latest AI Search',
+      type: 'reference',
+      to: [{ type: 'aiSearch' }],
+      readOnly: true,
+      description: 'Drives "Recommended for you" on the Home screen.',
+    }),
     defineField({ name: 'createdAt', title: 'Created At', type: 'datetime' }),
   ],
   preview: {

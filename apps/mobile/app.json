@@ -4,12 +4,8 @@
     "slug": "cutty",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "scheme": "cutty",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#111827"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.cutty.barbershop"
@@ -24,11 +20,34 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-splash-screen",
+        {
+          "resizeMode": "contain",
+          "backgroundColor": "#111827"
+        }
+      ],
+      [
         "expo-font",
         {
           "fonts": []
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cutty uses your photos to power AI style recommendations.",
+          "cameraPermission": "Cutty uses your camera to capture a photo for AI style recommendations."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Cutty uses your location to show barbers and stylists near you."
+        }
+      ],
+      "expo-sharing",
+      "expo-web-browser",
+      "@clerk/expo"
     ],
     "experiments": {
       "typedRoutes": true
